@@ -1,4 +1,3 @@
-
 "use client";
 
 import React, { useState, useEffect, useRef } from "react";
@@ -299,6 +298,11 @@ const ApplyFlowHomepage = () => {
 
   return (
     <div className="min-h-screen bg-background font-sans">
+      {/* Scroll Tracker */}
+      <div className="fixed bottom-4 right-4 z-50 backdrop-blur-md bg-white/10 dark:bg-black/20 border border-border text-sm px-4 py-2 rounded-full shadow-lg transition-all">
+        👀 Scroll Tracker Active
+      </div>
+
       {/* Navbar */}
       <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
         <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
@@ -350,13 +354,13 @@ const ApplyFlowHomepage = () => {
       <section className="pt-24 pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-6xl mx-auto text-center">
           <motion.h1 
-            className="text-4xl md:text-6xl font-bold text-foreground mb-6"
+            className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 bg-gradient-to-r from-[hsl(222.2,84%,4.9%)] to-[hsl(0,0%,100%)] dark:from-[hsl(210,40%,98%)] dark:to-[hsl(222.2,84%,4.9%)] bg-clip-text text-transparent"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
           >
             Build ATS-Ready Resumes.{" "}
-            <span className="text-primary">Track Every Job.</span>{" "}
+            Track Every Job.{" "}
             All in One.
           </motion.h1>
           
