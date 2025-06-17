@@ -1,247 +1,16 @@
+
 "use client";
 
-import React, { useState, useEffect, useRef } from "react";
-import { motion, AnimatePresence, useScroll, useTransform, useInView, useSpring } from "framer-motion";
-import { Menu, X, FileText, Briefcase, LogIn, ArrowRight, CheckCircle, Users, Calendar, Star } from "lucide-react";
-import { cn } from "@/lib/utils";
+import React from "react";
+import { motion } from "framer-motion";
+import { ArrowRight } from "lucide-react";
+import ScrollTracker from "./ScrollTracker";
+import Navbar from "./Navbar";
+import FeatureSteps from "./FeatureSteps";
+import TestimonialsSection from "./TestimonialsSection";
+import Footer from "./Footer";
 
-// Testimonial Card Component
-interface TestimonialCardProps {
-  quote: string;
-  name: string;
-  designation: string;
-  avatar: string;
-}
-
-const TestimonialCard = ({ quote, name, designation, avatar }: TestimonialCardProps) => {
-  return (
-    <div className="w-80 flex-shrink-0 bg-card border border-border rounded-lg p-6 shadow-sm">
-      <div className="flex items-start gap-4">
-        <img
-          src={avatar}
-          alt={name}
-          className="w-12 h-12 rounded-full object-cover"
-        />
-        <div className="flex-1">
-          <p className="text-sm text-muted-foreground mb-3 leading-relaxed">
-            "{quote}"
-          </p>
-          <div>
-            <p className="font-semibold text-foreground text-sm">{name}</p>
-            <p className="text-xs text-muted-foreground">{designation}</p>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Testimonials with Marquee Component
-interface TestimonialsSectionProps {
-  title: string;
-  description: string;
-  testimonials: Array<{
-    quote: string;
-    name: string;
-    designation: string;
-    avatar: string;
-  }>;
-  className?: string;
-}
-
-const TestimonialsSection = ({ 
-  title,
-  description,
-  testimonials,
-  className 
-}: TestimonialsSectionProps) => {
-  return (
-    <section className={cn(
-      "bg-background text-foreground",
-      "py-12 sm:py-24 md:py-32 px-0",
-      className
-    )}>
-      <div className="mx-auto flex max-w-6xl flex-col items-center gap-4 text-center sm:gap-16">
-        <div className="flex flex-col items-center gap-4 px-4 sm:gap-8">
-          <h2 className="max-w-[720px] text-3xl font-semibold leading-tight sm:text-4xl sm:leading-tight">
-            {title}
-          </h2>
-          <p className="text-md max-w-[600px] font-medium text-muted-foreground sm:text-xl">
-            {description}
-          </p>
-        </div>
-
-        <div className="relative flex w-full flex-col items-center justify-center overflow-hidden">
-          <div className="group flex overflow-hidden p-2 [--gap:1rem] [gap:var(--gap)] flex-row [--duration:40s]">
-            <div className="flex shrink-0 justify-around [gap:var(--gap)] animate-marquee flex-row group-hover:[animation-play-state:paused]">
-              {[...Array(4)].map((_, setIndex) => (
-                testimonials.map((testimonial, i) => (
-                  <TestimonialCard 
-                    key={`${setIndex}-${i}`}
-                    {...testimonial}
-                  />
-                ))
-              ))}
-            </div>
-          </div>
-
-          <div className="pointer-events-none absolute inset-y-0 left-0 hidden w-1/3 bg-gradient-to-r from-background sm:block" />
-          <div className="pointer-events-none absolute inset-y-0 right-0 hidden w-1/3 bg-gradient-to-l from-background sm:block" />
-        </div>
-      </div>
-    </section>
-  );
-};
-
-// Feature Steps Component
-interface Feature {
-  step: string;
-  title?: string;
-  content: string;
-  image: string;
-}
-
-interface FeatureStepsProps {
-  features: Feature[];
-  className?: string;
-  title?: string;
-  autoPlayInterval?: number;
-  imageHeight?: string;
-}
-
-const FeatureSteps = ({
-  features,
-  className,
-  title = "How to get Started",
-  autoPlayInterval = 3000,
-  imageHeight = "h-[400px]",
-}: FeatureStepsProps) => {
-  const [currentFeature, setCurrentFeature] = useState(0);
-  const [progress, setProgress] = useState(0);
-
-  useEffect(() => {
-    const timer = setInterval(() => {
-      if (progress < 100) {
-        setProgress((prev) => prev + 100 / (autoPlayInterval / 100));
-      } else {
-        setCurrentFeature((prev) => (prev + 1) % features.length);
-        setProgress(0);
-      }
-    }, 100);
-
-    return () => clearInterval(timer);
-  }, [progress, features.length, autoPlayInterval]);
-
-  return (
-    <div className={cn("p-8 md:p-12", className)}>
-      <div className="max-w-7xl mx-auto w-full">
-        <h2 className="text-3xl md:text-4xl lg:text-5xl font-bold mb-10 text-center">
-          {title}
-        </h2>
-
-        <div className="flex flex-col md:grid md:grid-cols-2 gap-6 md:gap-10">
-          <div className="order-2 md:order-1 space-y-8">
-            {features.map((feature, index) => (
-              <motion.div
-                key={index}
-                className="flex items-center gap-6 md:gap-8"
-                initial={{ opacity: 0.3 }}
-                animate={{ opacity: index === currentFeature ? 1 : 0.3 }}
-                transition={{ duration: 0.5 }}
-              >
-                <motion.div
-                  className={cn(
-                    "w-8 h-8 md:w-10 md:h-10 rounded-full flex items-center justify-center border-2",
-                    index === currentFeature
-                      ? "bg-primary border-primary text-primary-foreground scale-110"
-                      : "bg-muted border-muted-foreground",
-                  )}
-                >
-                  {index <= currentFeature ? (
-                    <span className="text-lg font-bold">✓</span>
-                  ) : (
-                    <span className="text-lg font-semibold">{index + 1}</span>
-                  )}
-                </motion.div>
-
-                <div className="flex-1">
-                  <h3 className="text-xl md:text-2xl font-semibold">
-                    {feature.title || feature.step}
-                  </h3>
-                  <p className="text-sm md:text-lg text-muted-foreground">
-                    {feature.content}
-                  </p>
-                </div>
-              </motion.div>
-            ))}
-          </div>
-
-          <div
-            className={cn(
-              "order-1 md:order-2 relative h-[200px] md:h-[300px] lg:h-[400px] overflow-hidden rounded-lg"
-            )}
-          >
-            <AnimatePresence mode="wait">
-              {features.map(
-                (feature, index) =>
-                  index === currentFeature && (
-                    <motion.div
-                      key={index}
-                      className="absolute inset-0 rounded-lg overflow-hidden"
-                      initial={{ y: 100, opacity: 0, rotateX: -20 }}
-                      animate={{ y: 0, opacity: 1, rotateX: 0 }}
-                      exit={{ y: -100, opacity: 0, rotateX: 20 }}
-                      transition={{ duration: 0.5, ease: "easeInOut" }}
-                    >
-                      <img
-                        src={feature.image}
-                        alt={feature.step}
-                        className="w-full h-full object-cover transition-transform transform"
-                        width={1000}
-                        height={500}
-                      />
-                      <div className="absolute bottom-0 left-0 right-0 h-2/3 bg-gradient-to-t from-background via-background/50 to-transparent" />
-                    </motion.div>
-                  ),
-              )}
-            </AnimatePresence>
-          </div>
-        </div>
-      </div>
-    </div>
-  );
-};
-
-// Simple Footer Component
-const Footer = () => {
-  return (
-    <footer className="bg-background border-t border-border">
-      <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        <div className="flex flex-col md:flex-row justify-between items-center gap-4">
-          <div className="flex items-center gap-4">
-            <p className="text-sm text-muted-foreground">© 2025 ApplyFlow</p>
-          </div>
-          <div className="flex items-center gap-6">
-            <a href="/privacy" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Privacy
-            </a>
-            <a href="/terms" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Terms
-            </a>
-            <a href="/contact" className="text-sm text-muted-foreground hover:text-foreground transition-colors">
-              Contact
-            </a>
-          </div>
-        </div>
-      </div>
-    </footer>
-  );
-};
-
-// Main ApplyFlow Homepage Component
 const ApplyFlowHomepage = () => {
-  const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
-
   const features = [
     {
       step: "Step 1",
@@ -298,57 +67,8 @@ const ApplyFlowHomepage = () => {
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      {/* Scroll Tracker */}
-      <div className="fixed bottom-4 right-4 z-50 backdrop-blur-md bg-white/10 dark:bg-black/20 border border-border text-sm px-4 py-2 rounded-full shadow-lg transition-all">
-        👀 Scroll Tracker Active
-      </div>
-
-      {/* Navbar */}
-      <nav className="fixed top-0 left-0 right-0 z-50 bg-background/80 backdrop-blur-md border-b border-border">
-        <div className="max-w-6xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex justify-between items-center h-16">
-            <div className="flex items-center">
-              <span className="text-2xl font-bold text-foreground">ApplyFlow</span>
-            </div>
-            
-            <div className="hidden md:flex items-center space-x-8">
-              <a href="#resume-builder" className="text-foreground hover:text-primary transition-colors">
-                Resume Builder
-              </a>
-              <a href="#job-tracker" className="text-foreground hover:text-primary transition-colors">
-                Job Tracker
-              </a>
-              <a href="#login" className="text-foreground hover:text-primary transition-colors">
-                Login
-              </a>
-            </div>
-
-            <button
-              className="md:hidden"
-              onClick={() => setIsMobileMenuOpen(!isMobileMenuOpen)}
-            >
-              {isMobileMenuOpen ? <X className="h-6 w-6" /> : <Menu className="h-6 w-6" />}
-            </button>
-          </div>
-        </div>
-
-        {/* Mobile Menu */}
-        {isMobileMenuOpen && (
-          <div className="md:hidden bg-background border-t border-border">
-            <div className="px-2 pt-2 pb-3 space-y-1">
-              <a href="#resume-builder" className="block px-3 py-2 text-foreground hover:text-primary">
-                Resume Builder
-              </a>
-              <a href="#job-tracker" className="block px-3 py-2 text-foreground hover:text-primary">
-                Job Tracker
-              </a>
-              <a href="#login" className="block px-3 py-2 text-foreground hover:text-primary">
-                Login
-              </a>
-            </div>
-          </div>
-        )}
-      </nav>
+      <ScrollTracker />
+      <Navbar />
 
       {/* Hero Section */}
       <section className="pt-24 pb-16 px-4 sm:px-6 lg:px-8">
@@ -471,7 +191,6 @@ const ApplyFlowHomepage = () => {
         className="bg-muted/30"
       />
 
-      {/* Footer */}
       <Footer />
     </div>
   );
