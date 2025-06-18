@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -70,10 +71,13 @@ const ApplyFlowHomepage = () => {
         <div className="flex items-center space-x-8">
           <span className="text-lg font-bold text-foreground">ApplyFlow</span>
           <div className="hidden md:flex items-center space-x-6">
-            <a href="#resume-builder" className="text-sm text-foreground hover:text-primary transition-colors">
+            <Link to="/resume" className="text-sm text-foreground hover:text-primary transition-all duration-300 hover:scale-110 transform">
               Resume Builder
-            </a>
-            <a href="#job-tracker" className="text-sm text-foreground hover:text-primary transition-colors">
+            </Link>
+            <Link to="/ats" className="text-sm text-foreground hover:text-primary transition-all duration-300 hover:scale-110 transform">
+              ATS Tracker
+            </Link>
+            <a href="#job-tracker" className="text-sm text-foreground hover:text-primary transition-all duration-300 hover:scale-110 transform">
               Job Tracker
             </a>
             <Link to="/login" className="group flex items-center gap-2 text-sm text-foreground hover:text-primary transition-all duration-300 border border-border rounded-full px-4 py-2 hover:scale-105 hover:border-primary">
