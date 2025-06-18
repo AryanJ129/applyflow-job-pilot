@@ -1,0 +1,193 @@
+
+import React from 'react';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Badge } from '@/components/ui/badge';
+import { useNavigate } from 'react-router-dom';
+
+interface ProfileData {
+  basic_info: {
+    fullName: string;
+    jobTitle: string;
+    summary: string;
+  };
+  work_experience: Array<{
+    jobTitle: string;
+    company: string;
+    startDate: string;
+    endDate: string;
+    description: string;
+  }>;
+  education: Array<{
+    degree: string;
+    institution: string;
+    graduationYear: string;
+  }>;
+  skills: string[];
+  isFresher: boolean;
+}
+
+interface ProfileReviewStepProps {
+  data: ProfileData;
+  onSave: () => void;
+  loading: boolean;
+}
+
+const ProfileReviewStep = ({ data, onSave, loading }: ProfileReviewStepProps) => {
+  const navigate = useNavigate();
+
+  const handleSaveAndContinue = async () => {
+    await onSave();
+    navigate('/dashboard');
+  };
+
+  const formatDate = (dateString: string) => {
+    if (!dateString) return 'Present';
+    const date = new Date(dateString);
+    return date.toLocaleDateString('en-US', { year: 'numeric', month: 'long' });
+  };
+
+  return (
+    <div className="space-y-8">
+      <div className="text-center mb-8">
+        <h2 className="text-2xl font-semibold text-foreground mb-2">
+          Review
+        </h2>
+        <p className="text-muted-foreground">
+          Let us know you better — this helps us personalize your ApplyFlow journey.
+        </p>
+      </div>
+
+      <div className="bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border border-border rounded-xl p-8 shadow-sm">
+        {/* Header */}
+        <div className="text-center mb-8 pb-6 border-b border-border">
+          <h1 className="text-3xl font-bold text-foreground mb-2">
+            {data.basic_info.fullName || 'Your Name'}
+          </h1>
+          <p className="text-xl text-muted-foreground">
+            {data.basic_info.jobTitle || 'Your Job Title'}
+          </p>
+        </div>
+
+        {/* Professional Summary */}
+        {data.basic_info.summary && (
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-foreground mb-3 border-b border-border pb-1">
+              Professional Summary
+            </h3>
+            <p className="text-muted-foreground leading-relaxed">
+              {data.basic_info.summary}
+            </p>
+          </div>
+        )}
+
+        {/* Work Experience */}
+        {!data.isFresher && data.work_experience.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-foreground mb-4 border-b border-border pb-1">
+              Work Experience
+            </h3>
+            <div className="space-y-6">
+              {data.work_experience.map((exp, index) => (
+                <div key={index} className="border-l-2 border-blue-200 dark:border-blue-800 pl-4">
+                  <h4 className="font-semibold text-foreground">{exp.jobTitle}</h4>
+                  <p className="text-muted-foreground">{exp.company}</p>
+                  <p className="text-sm text-muted-foreground mb-2">
+                    {formatDate(exp.startDate)} - {formatDate(exp.endDate)}
+                  </p>
+                  <p className="text-muted-foreground whitespace-pre-line">
+                    {exp.description}
+                  </p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Fresher Status */}
+        {data.isFresher && (
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-foreground mb-4 border-b border-border pb-1">
+              Experience Level
+            </h3>
+            <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4">
+              <p className="text-blue-800 dark:text-blue-200 font-medium">
+                Fresh Graduate - Ready to start my career journey
+              </p>
+            </div>
+          </div>
+        )}
+
+        {/* Education */}
+        {data.education.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-foreground mb-4 border-b border-border pb-1">
+              Education
+            </h3>
+            <div className="space-y-4">
+              {data.education.map((edu, index) => (
+                <div key={index}>
+                  <h4 className="font-semibold text-foreground">{edu.degree}</h4>
+                  <p className="text-muted-foreground">{edu.institution}</p>
+                  <p className="text-sm text-muted-foreground">{edu.graduationYear}</p>
+                </div>
+              ))}
+            </div>
+          </div>
+        )}
+
+        {/* Skills */}
+        {data.skills.length > 0 && (
+          <div className="mb-8">
+            <h3 className="text-lg font-semibold text-foreground mb-4 border-b border-border pb-1">
+              Skills
+            </h3>
+            <div className="flex flex-wrap gap-2">
+              {data.skills.map((skill, index) => (
+                <Badge
+                  key={index}
+                  variant="secondary"
+                  className="bg-blue-100 dark:bg-blue-900 text-blue-800 dark:text-blue-200"
+                >
+                  {skill}
+                </Badge>
+              ))}
+            </div>
+          </div>
+        )}
+      </div>
+
+      <div className="flex justify-center">
+        <Button
+          onClick={handleSaveAndContinue}
+          disabled={loading}
+          className="w-full sm:w-auto min-w-[300px] h-14 text-lg font-bold text-white rounded-full 
+                     bg-gradient-to-r from-pink-500 via-blue-500 to-yellow-400 
+                     hover:from-pink-600 hover:via-blue-600 hover:to-yellow-500 
+                     hover:scale-[1.02] transition-all duration-300 
+                     shadow-lg hover:shadow-xl
+                     animate-pulse hover:animate-none"
+          style={{
+            background: loading 
+              ? 'linear-gradient(45deg, #8b5cf6, #06b6d4, #10b981)' 
+              : 'linear-gradient(45deg, #ec4899, #3b82f6, #eab308)',
+            backgroundSize: '200% 200%',
+            animation: loading ? 'none' : 'gradient 3s ease infinite'
+          }}
+        >
+          {loading ? 'Saving Profile...' : 'Save and Go to Dashboard'}
+        </Button>
+      </div>
+
+      <style jsx>{`
+        @keyframes gradient {
+          0% { background-position: 0% 50%; }
+          50% { background-position: 100% 50%; }
+          100% { background-position: 0% 50%; }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+export default ProfileReviewStep;

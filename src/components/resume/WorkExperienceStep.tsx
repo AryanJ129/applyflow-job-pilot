@@ -2,8 +2,8 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
-import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Plus, Trash2, GraduationCap } from 'lucide-react';
 
@@ -18,18 +18,20 @@ interface WorkExperience {
 interface WorkExperienceStepProps {
   data: WorkExperience[];
   onUpdate: (data: WorkExperience[]) => void;
+  isFresher: boolean;
+  onFresherChange: (isFresher: boolean) => void;
 }
 
-const WorkExperienceStep = ({ data, onUpdate }: WorkExperienceStepProps) => {
+const WorkExperienceStep = ({ data, onUpdate, isFresher, onFresherChange }: WorkExperienceStepProps) => {
   const addWorkExperience = () => {
-    const newExperience: WorkExperience = {
+    const newWork: WorkExperience = {
       jobTitle: '',
       company: '',
       startDate: '',
       endDate: '',
       description: ''
     };
-    onUpdate([...data, newExperience]);
+    onUpdate([...data, newWork]);
   };
 
   const updateWorkExperience = (index: number, field: keyof WorkExperience, value: string) => {
@@ -43,19 +45,25 @@ const WorkExperienceStep = ({ data, onUpdate }: WorkExperienceStepProps) => {
     onUpdate(newData);
   };
 
-  const handleFresherMode = () => {
-    // Clear all work experience and set flag to indicate fresher
-    onUpdate([]);
-  };
-
-  // Initialize with one empty experience if none exist
-  React.useEffect(() => {
-    if (data.length === 0) {
+  const handleFresherToggle = () => {
+    const newFresherStatus = !isFresher;
+    onFresherChange(newFresherStatus);
+    
+    if (newFresherStatus) {
+      // Clear work experience when marking as fresher
+      onUpdate([]);
+    } else if (data.length === 0) {
+      // Add one empty work experience when not fresher
       addWorkExperience();
     }
-  }, []);
+  };
 
-  const isFresher = data.length === 0;
+  // Initialize with one empty work experience if not fresher and no data
+  React.useEffect(() => {
+    if (!isFresher && data.length === 0) {
+      addWorkExperience();
+    }
+  }, [isFresher]);
 
   return (
     <div className="space-y-6">
@@ -64,30 +72,34 @@ const WorkExperienceStep = ({ data, onUpdate }: WorkExperienceStepProps) => {
           Work Experience
         </h2>
         <p className="text-muted-foreground">
-          Add your professional work experience or mark yourself as a fresher
+          Share your professional experience or mark yourself as a fresh graduate
         </p>
       </div>
 
       <div className="flex justify-center mb-6">
         <Button
-          onClick={handleFresherMode}
+          onClick={handleFresherToggle}
           variant={isFresher ? "default" : "outline"}
-          className={isFresher ? "bg-green-600 hover:bg-green-700" : ""}
+          className={`flex items-center gap-2 h-12 px-6 rounded-full transition-all duration-300 ${
+            isFresher 
+              ? 'bg-gradient-to-r from-green-600 to-green-500 text-white hover:from-green-700 hover:to-green-600 shadow-lg' 
+              : 'border-dashed border-2 text-muted-foreground hover:text-foreground hover:border-border'
+          }`}
         >
-          <GraduationCap className="w-4 h-4 mr-2" />
-          I'm a Fresher
+          <GraduationCap className="w-4 h-4" />
+          {isFresher ? "I'm a Fresh Graduate" : "I'm a Fresh Graduate"}
         </Button>
       </div>
 
       {!isFresher && (
         <div className="space-y-4">
-          {data.map((experience, index) => (
+          {data.map((work, index) => (
             <Card key={index} className="bg-white/50 dark:bg-[hsl(217.2_32.6%_17.5%)]/50 border-border">
               <CardHeader>
                 <div className="flex items-center justify-between">
                   <CardTitle className="text-lg text-foreground">
-                    {experience.jobTitle || `Experience ${index + 1}`}
-                    {experience.company && ` - ${experience.company}`}
+                    {work.jobTitle || `Experience ${index + 1}`}
+                    {work.company && ` - ${work.company}`}
                   </CardTitle>
                   {data.length > 1 && (
                     <Button
@@ -103,36 +115,34 @@ const WorkExperienceStep = ({ data, onUpdate }: WorkExperienceStepProps) => {
               </CardHeader>
               
               <CardContent className="space-y-4">
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor={`jobTitle-${index}`} className="text-foreground font-medium">
-                      Job Title *
-                    </Label>
-                    <Input
-                      id={`jobTitle-${index}`}
-                      type="text"
-                      placeholder="e.g., Software Engineer"
-                      value={experience.jobTitle}
-                      onChange={(e) => updateWorkExperience(index, 'jobTitle', e.target.value)}
-                      className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
-                      required
-                    />
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor={`company-${index}`} className="text-foreground font-medium">
-                      Company *
-                    </Label>
-                    <Input
-                      id={`company-${index}`}
-                      type="text"
-                      placeholder="e.g., Tech Corp"
-                      value={experience.company}
-                      onChange={(e) => updateWorkExperience(index, 'company', e.target.value)}
-                      className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
-                      required
-                    />
-                  </div>
+                <div>
+                  <Label htmlFor={`jobTitle-${index}`} className="text-foreground font-medium">
+                    Job Title *
+                  </Label>
+                  <Input
+                    id={`jobTitle-${index}`}
+                    type="text"
+                    placeholder="e.g., Software Engineer"
+                    value={work.jobTitle}
+                    onChange={(e) => updateWorkExperience(index, 'jobTitle', e.target.value)}
+                    className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
+                    required
+                  />
+                </div>
+                
+                <div>
+                  <Label htmlFor={`company-${index}`} className="text-foreground font-medium">
+                    Company *
+                  </Label>
+                  <Input
+                    id={`company-${index}`}
+                    type="text"
+                    placeholder="e.g., Google Inc."
+                    value={work.company}
+                    onChange={(e) => updateWorkExperience(index, 'company', e.target.value)}
+                    className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
+                    required
+                  />
                 </div>
 
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -143,13 +153,13 @@ const WorkExperienceStep = ({ data, onUpdate }: WorkExperienceStepProps) => {
                     <Input
                       id={`startDate-${index}`}
                       type="month"
-                      value={experience.startDate}
+                      value={work.startDate}
                       onChange={(e) => updateWorkExperience(index, 'startDate', e.target.value)}
                       className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
                       required
                     />
                   </div>
-
+                  
                   <div>
                     <Label htmlFor={`endDate-${index}`} className="text-foreground font-medium">
                       End Date
@@ -157,10 +167,10 @@ const WorkExperienceStep = ({ data, onUpdate }: WorkExperienceStepProps) => {
                     <Input
                       id={`endDate-${index}`}
                       type="month"
-                      value={experience.endDate}
+                      value={work.endDate}
                       onChange={(e) => updateWorkExperience(index, 'endDate', e.target.value)}
-                      placeholder="Leave empty if current job"
                       className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
+                      placeholder="Leave empty if current"
                     />
                   </div>
                 </div>
@@ -171,8 +181,8 @@ const WorkExperienceStep = ({ data, onUpdate }: WorkExperienceStepProps) => {
                   </Label>
                   <Textarea
                     id={`description-${index}`}
-                    placeholder="Describe your responsibilities, achievements, and key projects..."
-                    value={experience.description}
+                    placeholder="Describe your key responsibilities, achievements, and skills used in this role..."
+                    value={work.description}
                     onChange={(e) => updateWorkExperience(index, 'description', e.target.value)}
                     rows={4}
                     className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
@@ -195,19 +205,16 @@ const WorkExperienceStep = ({ data, onUpdate }: WorkExperienceStepProps) => {
       )}
 
       {isFresher && (
-        <div className="text-center py-12">
-          <GraduationCap className="w-16 h-16 mx-auto text-green-600 mb-4" />
-          <h3 className="text-xl font-semibold text-foreground mb-2">Welcome, Fresher!</h3>
-          <p className="text-muted-foreground mb-6">
-            No worries about work experience. Let's focus on your education and skills.
-          </p>
-          <Button
-            onClick={addWorkExperience}
-            variant="outline"
-            size="sm"
-          >
-            Actually, I do have work experience
-          </Button>
+        <div className="text-center py-8">
+          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6 max-w-md mx-auto">
+            <GraduationCap className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
+            <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200 mb-2">
+              Fresh Graduate
+            </h3>
+            <p className="text-blue-600 dark:text-blue-300 text-sm">
+              Perfect! We'll help you highlight your education, skills, and potential to employers.
+            </p>
+          </div>
         </div>
       )}
     </div>

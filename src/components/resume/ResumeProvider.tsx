@@ -25,6 +25,7 @@ interface ResumeData {
     graduationYear: string;
   }>;
   skills: string[];
+  isFresher: boolean;
 }
 
 interface ResumeContextType {
@@ -32,7 +33,7 @@ interface ResumeContextType {
   setCurrentStep: (step: number) => void;
   resumeData: ResumeData;
   updateResumeData: (section: keyof ResumeData, data: any) => void;
-  saveResumeData: () => Promise<void>;
+  saveProfileData: () => Promise<void>;
   handleNext: () => void;
   handlePrevious: () => void;
   loading: boolean;
@@ -73,12 +74,13 @@ export const ResumeProvider = ({ children }: ResumeProviderProps) => {
     work_experience: [],
     education: [],
     skills: [],
+    isFresher: false,
   });
 
   const totalSteps = 5;
 
   useEffect(() => {
-    // Check authentication and load existing resume data
+    // Check authentication and load existing profile data
     const checkAuth = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
@@ -89,7 +91,7 @@ export const ResumeProvider = ({ children }: ResumeProviderProps) => {
         }
 
         setUser(session.user);
-        await loadResumeData(session.user.id);
+        await loadProfileData(session.user.id);
       } catch (error) {
         console.error('Auth check error:', error);
         navigate('/login');
@@ -112,27 +114,26 @@ export const ResumeProvider = ({ children }: ResumeProviderProps) => {
     return () => subscription.unsubscribe();
   }, [navigate]);
 
-  const loadResumeData = async (userId: string) => {
+  const loadProfileData = async (userId: string) => {
     try {
       const { data, error } = await supabase
-        .from('resumes')
+        .from('profiles')
         .select('*')
         .eq('user_id', userId)
-        .order('updated_at', { ascending: false })
-        .limit(1);
+        .single();
 
-      if (error) throw error;
+      if (error && error.code !== 'PGRST116') { // PGRST116 is "not found"
+        throw error;
+      }
 
-      if (data && data.length > 0) {
-        const resume = data[0];
-        
+      if (data) {
         // Safely cast JSONB data with proper type checking and fallbacks
-        const basicInfo = resume.basic_info && typeof resume.basic_info === 'object' && !Array.isArray(resume.basic_info)
-          ? resume.basic_info as { fullName?: string; jobTitle?: string; summary?: string }
+        const basicInfo = data.basic_info && typeof data.basic_info === 'object' && !Array.isArray(data.basic_info)
+          ? data.basic_info as { fullName?: string; jobTitle?: string; summary?: string }
           : {};
 
-        const workExperience = Array.isArray(resume.work_experience) 
-          ? resume.work_experience as Array<{
+        const workExperience = Array.isArray(data.work_experience) 
+          ? data.work_experience as Array<{
               jobTitle?: string;
               company?: string;
               startDate?: string;
@@ -141,20 +142,20 @@ export const ResumeProvider = ({ children }: ResumeProviderProps) => {
             }>
           : [];
 
-        const education = Array.isArray(resume.education)
-          ? resume.education as Array<{
+        const education = Array.isArray(data.education)
+          ? data.education as Array<{
               degree?: string;
               institution?: string;
               graduationYear?: string;
             }>
           : [];
 
-        const skills = Array.isArray(resume.skills)
-          ? resume.skills.filter((skill): skill is string => typeof skill === 'string')
+        const skills = Array.isArray(data.skills)
+          ? data.skills.filter((skill): skill is string => typeof skill === 'string')
           : [];
 
         setResumeData({
-          id: resume.id,
+          id: data.id,
           basic_info: {
             fullName: basicInfo.fullName || '',
             jobTitle: basicInfo.jobTitle || '',
@@ -173,44 +174,47 @@ export const ResumeProvider = ({ children }: ResumeProviderProps) => {
             graduationYear: edu.graduationYear || '',
           })),
           skills,
+          isFresher: workExperience.length === 0,
         });
       }
     } catch (error: any) {
-      console.error('Error loading resume:', error);
+      console.error('Error loading profile:', error);
       toast({
         title: "Error",
-        description: "Failed to load resume data",
+        description: "Failed to load profile data",
         variant: "destructive"
       });
     }
   };
 
-  const saveResumeData = async () => {
+  const saveProfileData = async () => {
     if (!user) return;
 
     setLoading(true);
     try {
-      const resumePayload = {
+      const profilePayload = {
         user_id: user.id,
-        basic_info: resumeData.basic_info,
-        work_experience: resumeData.work_experience,
+        full_name: resumeData.basic_info.fullName,
+        job_title: resumeData.basic_info.jobTitle,
+        summary: resumeData.basic_info.summary,
+        work_experience: resumeData.isFresher ? [] : resumeData.work_experience,
         education: resumeData.education,
         skills: resumeData.skills,
       };
 
       if (resumeData.id) {
-        // Update existing resume
+        // Update existing profile
         const { error } = await supabase
-          .from('resumes')
-          .update(resumePayload)
+          .from('profiles')
+          .update(profilePayload)
           .eq('id', resumeData.id);
 
         if (error) throw error;
       } else {
-        // Create new resume
+        // Create new profile
         const { data, error } = await supabase
-          .from('resumes')
-          .insert([resumePayload])
+          .from('profiles')
+          .insert([profilePayload])
           .select()
           .single();
 
@@ -222,13 +226,13 @@ export const ResumeProvider = ({ children }: ResumeProviderProps) => {
 
       toast({
         title: "Success",
-        description: "Resume saved successfully",
+        description: "Profile saved successfully",
       });
     } catch (error: any) {
-      console.error('Error saving resume:', error);
+      console.error('Error saving profile:', error);
       toast({
         title: "Error",
-        description: "Failed to save resume",
+        description: "Failed to save profile",
         variant: "destructive"
       });
     } finally {
@@ -244,8 +248,9 @@ export const ResumeProvider = ({ children }: ResumeProviderProps) => {
                resumeData.basic_info.summary.trim() !== '';
       
       case 2: // Work Experience
-        // Allow proceed if fresher (empty array) or if all work experiences are complete
-        if (resumeData.work_experience.length === 0) return true;
+        // Allow proceed if fresher or if all work experiences are complete
+        if (resumeData.isFresher) return true;
+        if (resumeData.work_experience.length === 0) return false;
         return resumeData.work_experience.every(exp => 
           exp.jobTitle.trim() !== '' && 
           exp.company.trim() !== '' && 
@@ -302,7 +307,7 @@ export const ResumeProvider = ({ children }: ResumeProviderProps) => {
     setCurrentStep,
     resumeData,
     updateResumeData,
-    saveResumeData,
+    saveProfileData,
     handleNext,
     handlePrevious,
     loading,

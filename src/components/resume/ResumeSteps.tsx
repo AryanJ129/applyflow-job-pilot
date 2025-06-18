@@ -5,11 +5,11 @@ import BasicInfoStep from './BasicInfoStep';
 import WorkExperienceStep from './WorkExperienceStep';
 import EducationStep from './EducationStep';
 import SkillsStep from './SkillsStep';
-import ReviewStep from './ReviewStep';
+import ProfileReviewStep from './ProfileReviewStep';
 import { useResume } from './ResumeProvider';
 
 const ResumeSteps = () => {
-  const { currentStep, resumeData, updateResumeData, saveResumeData, loading } = useResume();
+  const { currentStep, resumeData, updateResumeData, saveProfileData, loading } = useResume();
 
   const renderCurrentStep = () => {
     switch (currentStep) {
@@ -25,6 +25,8 @@ const ResumeSteps = () => {
           <WorkExperienceStep
             data={resumeData.work_experience}
             onUpdate={(data) => updateResumeData('work_experience', data)}
+            isFresher={resumeData.isFresher}
+            onFresherChange={(isFresher) => updateResumeData('isFresher', isFresher)}
           />
         );
       case 3:
@@ -43,9 +45,9 @@ const ResumeSteps = () => {
         );
       case 5:
         return (
-          <ReviewStep
+          <ProfileReviewStep
             data={resumeData}
-            onSave={saveResumeData}
+            onSave={saveProfileData}
             loading={loading}
           />
         );
