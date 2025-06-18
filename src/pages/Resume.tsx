@@ -38,6 +38,11 @@ interface ResumeData {
 const Resume = () => {
   const [currentStep, setCurrentStep] = useState(1);
   const [user, setUser] = useState<User | null>(null);
+  const [loading, setLoading] = useState(false);
+  const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const navigate = useNavigate();
+  const { toast } = useToast();
+  
   const [resumeData, setResumeData] = useState<ResumeData>({
     basic_info: {
       fullName: '',
@@ -48,24 +53,28 @@ const Resume = () => {
     education: [],
     skills: [],
   });
-  const [loading, setLoading] = useState(false);
-  const navigate = useNavigate();
-  const { toast } = useToast();
 
   const totalSteps = 5;
 
   useEffect(() => {
     // Check authentication and load existing resume data
     const checkAuth = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (!session) {
-        navigate('/login');
-        return;
-      }
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (!session) {
+          navigate('/login');
+          return;
+        }
 
-      setUser(session.user);
-      await loadResumeData(session.user.id);
+        setUser(session.user);
+        await loadResumeData(session.user.id);
+      } catch (error) {
+        console.error('Auth check error:', error);
+        navigate('/login');
+      } finally {
+        setIsAuthChecking(false);
+      }
     };
 
     checkAuth();
@@ -74,6 +83,8 @@ const Resume = () => {
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       if (!session) {
         navigate('/login');
+      } else {
+        setUser(session.user);
       }
     });
 
@@ -267,7 +278,8 @@ const Resume = () => {
     }
   };
 
-  if (!user) {
+  // Show loading spinner while checking authentication
+  if (isAuthChecking || !user) {
     return (
       <div className="min-h-screen bg-background flex items-center justify-center">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
