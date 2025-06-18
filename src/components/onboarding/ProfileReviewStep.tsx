@@ -2,6 +2,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { useNavigate } from 'react-router-dom';
+
 interface ProfileData {
   basic_info: {
     fullName: string;
@@ -136,7 +137,13 @@ const ProfileReviewStep = ({
       </div>
 
       <div className="flex justify-center">
-        
+        <Button
+          onClick={handleSaveAndContinue}
+          disabled={loading}
+          className="bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 rounded-full px-8 h-12 text-lg"
+        >
+          {loading ? 'Saving Profile...' : 'Complete Setup'}
+        </Button>
       </div>
     </div>;
 };
