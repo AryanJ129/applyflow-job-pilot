@@ -1,11 +1,11 @@
 
 import React, { useState } from 'react';
-import { ArrowRight, Mail, Eye, EyeOff } from 'lucide-react';
+import { ArrowRight, Mail, Eye, EyeOff, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 
 interface EmailLoginFormProps {
-  onSubmit: (email: string, password: string, confirmPassword: string) => void;
+  onSubmit: (email: string, password: string, confirmPassword: string, name?: string) => void;
   isSignUp: boolean;
   setIsSignUp: (value: boolean) => void;
   setShowEmailForm: (value: boolean) => void;
@@ -22,15 +22,29 @@ const EmailLoginForm = ({
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [confirmPassword, setConfirmPassword] = useState('');
+  const [name, setName] = useState('');
   const [showPassword, setShowPassword] = useState(false);
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    onSubmit(email, password, confirmPassword);
+    onSubmit(email, password, confirmPassword, name);
   };
 
   return (
     <form onSubmit={handleSubmit} className="space-y-4">
+      {isSignUp && (
+        <div>
+          <Input
+            type="text"
+            placeholder="Full Name"
+            value={name}
+            onChange={(e) => setName(e.target.value)}
+            required
+            className="h-12 rounded-full border-border bg-white/50"
+          />
+        </div>
+      )}
+      
       <div>
         <Input
           type="email"

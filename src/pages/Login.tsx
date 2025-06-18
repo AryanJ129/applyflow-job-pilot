@@ -68,7 +68,7 @@ const Login = () => {
     }
   };
 
-  const handleEmailAuth = async (email: string, password: string, confirmPassword: string) => {
+  const handleEmailAuth = async (email: string, password: string, confirmPassword: string, name?: string) => {
     if (isSignUp && password !== confirmPassword) {
       toast({
         title: "Password Mismatch",
@@ -85,7 +85,10 @@ const Login = () => {
           email,
           password,
           options: {
-            emailRedirectTo: `${window.location.origin}/resume`
+            emailRedirectTo: `${window.location.origin}/resume`,
+            data: {
+              full_name: name || ''
+            }
           }
         });
         
