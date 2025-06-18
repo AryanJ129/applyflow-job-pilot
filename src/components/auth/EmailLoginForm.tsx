@@ -38,7 +38,7 @@ const EmailLoginForm = ({
           value={email}
           onChange={(e) => setEmail(e.target.value)}
           required
-          className="h-12 rounded-full border-[hsl(214.3_31.8%_91.4%)] bg-white/50"
+          className="h-12 rounded-full border-border bg-white/50"
         />
       </div>
       
@@ -49,12 +49,12 @@ const EmailLoginForm = ({
           value={password}
           onChange={(e) => setPassword(e.target.value)}
           required
-          className="h-12 rounded-full border-[hsl(214.3_31.8%_91.4%)] bg-white/50 pr-10"
+          className="h-12 rounded-full border-border bg-white/50 pr-10"
         />
         <button
           type="button"
           onClick={() => setShowPassword(!showPassword)}
-          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-[hsl(215.4_16.3%_46.9%)]"
+          className="absolute right-3 top-1/2 transform -translate-y-1/2 text-muted-foreground"
         >
           {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
         </button>
@@ -68,7 +68,7 @@ const EmailLoginForm = ({
             value={confirmPassword}
             onChange={(e) => setConfirmPassword(e.target.value)}
             required
-            className="h-12 rounded-full border-[hsl(214.3_31.8%_91.4%)] bg-white/50"
+            className="h-12 rounded-full border-border bg-white/50"
           />
         </div>
       )}
@@ -76,17 +76,17 @@ const EmailLoginForm = ({
       <Button
         type="submit"
         disabled={loading}
-        className="bg-gradient-to-b from-blue-600 to-blue-700 hover:from-blue-700 hover:to-blue-800 text-white shadow-md rounded-full px-6 py-3 text-sm w-full h-12"
+        className="bg-gradient-to-r from-blue-600 to-blue-500 hover:from-blue-700 hover:to-blue-600 text-white rounded-full px-4 py-3 text-sm w-full h-12 transition-all duration-200"
       >
         {isSignUp ? 'Create Account' : 'Sign In'}
         <ArrowRight className="w-4 h-4 ml-2" />
       </Button>
 
-      <div className="text-center">
+      <div className="text-center mt-4">
         <button
           type="button"
           onClick={() => setIsSignUp(!isSignUp)}
-          className="text-sm text-[hsl(215.4_16.3%_46.9%)] hover:text-[hsl(222.2_84%_4.9%)] transition-colors"
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           {isSignUp ? 'Already have an account? Sign in' : "Don't have an account? Sign up"}
         </button>
@@ -96,7 +96,7 @@ const EmailLoginForm = ({
         <button
           type="button"
           onClick={() => setShowEmailForm(false)}
-          className="text-sm text-[hsl(215.4_16.3%_46.9%)] hover:text-[hsl(222.2_84%_4.9%)] transition-colors"
+          className="text-sm text-muted-foreground hover:text-foreground transition-colors"
         >
           ← Back to login options
         </button>

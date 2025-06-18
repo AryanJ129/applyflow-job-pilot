@@ -131,19 +131,19 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[hsl(0_0%_100%)] flex items-center justify-center p-4 relative">
+    <div className="min-h-screen bg-background flex items-center justify-center p-4 relative">
       <BackButton />
 
       <motion.div 
-        className="backdrop-blur-md bg-white/70 border border-[hsl(214.3_31.8%_91.4%)] rounded-xl p-8 w-full max-w-md"
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.6 }}
+        className="bg-white/70 backdrop-blur-md border border-[#e6e6e6] rounded-2xl shadow-md p-8 w-full max-w-md"
+        initial={{ opacity: 0, y: 20, scale: 0.95 }}
+        animate={{ opacity: 1, y: 0, scale: 1 }}
+        transition={{ duration: 0.4, ease: "easeOut" }}
       >
         <LoginHeader showEmailForm={showEmailForm} isSignUp={isSignUp} />
 
         {!showEmailForm ? (
-          <div className="space-y-4">
+          <div className="space-y-6">
             <GoogleLoginButton onGoogleLogin={handleGoogleLogin} loading={loading} />
             <EmailOrDivider />
             <EmailButton onClick={() => setShowEmailForm(true)} />

@@ -12,7 +12,7 @@ const EmailButton = ({ onClick }: EmailButtonProps) => {
     <Button
       onClick={onClick}
       variant="outline"
-      className="w-full h-12 rounded-full border-[hsl(214.3_31.8%_91.4%)] text-[hsl(222.2_84%_4.9%)] hover:bg-[hsl(210_40%_96.1%)]"
+      className="w-full h-12 rounded-full border-border text-foreground hover:bg-accent transition-all duration-200"
     >
       <Mail className="w-4 h-4 mr-2" />
       Continue with Email
