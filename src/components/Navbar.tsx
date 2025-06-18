@@ -20,6 +20,9 @@ const Navbar = () => {
             <a href="#job-tracker" className="text-foreground hover:text-primary transition-colors">
               Job Tracker
             </a>
+            <a href="/ats" className="text-foreground hover:text-primary transition-colors">
+              ATS Checker
+            </a>
             <a href="#login" className="text-foreground hover:text-primary transition-colors">
               Login
             </a>
@@ -43,6 +46,9 @@ const Navbar = () => {
             </a>
             <a href="#job-tracker" className="block px-3 py-2 text-foreground hover:text-primary">
               Job Tracker
+            </a>
+            <a href="/ats" className="block px-3 py-2 text-foreground hover:text-primary">
+              ATS Checker
             </a>
             <a href="#login" className="block px-3 py-2 text-foreground hover:text-primary">
               Login
