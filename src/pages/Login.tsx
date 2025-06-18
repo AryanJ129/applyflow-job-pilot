@@ -1,7 +1,6 @@
-
 import React, { useState, useEffect } from 'react';
 import { motion } from 'framer-motion';
-import { ArrowRight, Mail, Eye, EyeOff } from 'lucide-react';
+import { ArrowRight, Mail, Eye, EyeOff, ArrowLeft } from 'lucide-react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
 import { Button } from '@/components/ui/button';
@@ -135,7 +134,17 @@ const Login = () => {
   }
 
   return (
-    <div className="min-h-screen bg-[hsl(0_0%_100%)] flex items-center justify-center p-4">
+    <div className="min-h-screen bg-[hsl(0_0%_100%)] flex items-center justify-center p-4 relative">
+      {/* Back Button */}
+      <motion.button
+        onClick={() => navigate('/')}
+        className="absolute top-6 left-6 backdrop-blur-md bg-white/70 border border-[hsl(214.3_31.8%_91.4%)] rounded-full p-3 hover:bg-white/80 transition-colors"
+        whileHover={{ scale: 1.05 }}
+        whileTap={{ scale: 0.95 }}
+      >
+        <ArrowLeft className="w-5 h-5 text-[hsl(222.2_84%_4.9%)]" />
+      </motion.button>
+
       <motion.div 
         className="backdrop-blur-md bg-white/70 border border-[hsl(214.3_31.8%_91.4%)] rounded-xl p-8 w-full max-w-md"
         initial={{ opacity: 0, y: 20 }}
