@@ -38,12 +38,12 @@ const EducationStep = ({ data, onUpdate }: EducationStepProps) => {
     onUpdate(newData);
   };
 
-  // Initialize with one empty education if none exist
-  if (data.length === 0) {
-    React.useEffect(() => {
+  // Initialize with one empty education if none exist - moved outside conditional
+  React.useEffect(() => {
+    if (data.length === 0) {
       addEducation();
-    }, []);
-  }
+    }
+  }, [data.length]); // Added dependency array
 
   return (
     <div className="space-y-6">
