@@ -1,9 +1,9 @@
-
 "use client";
 
 import React from "react";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
+import { Link } from "react-router-dom";
 import FeatureSteps from "./FeatureSteps";
 import TestimonialsSection from "./TestimonialsSection";
 import Footer from "./Footer";
@@ -76,12 +76,12 @@ const ApplyFlowHomepage = () => {
             <a href="#job-tracker" className="text-sm text-foreground hover:text-primary transition-colors">
               Job Tracker
             </a>
-            <a href="#login" className="group flex items-center gap-2 text-sm text-foreground hover:text-primary transition-all duration-300 border border-border rounded-full px-4 py-2 hover:scale-105 hover:border-primary">
+            <Link to="/login" className="group flex items-center gap-2 text-sm text-foreground hover:text-primary transition-all duration-300 border border-border rounded-full px-4 py-2 hover:scale-105 hover:border-primary">
               <span className="group-hover:scale-105 transition-transform duration-300">Get Started</span>
               <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                 <ArrowRight className="h-3 w-3 text-white" />
               </div>
-            </a>
+            </Link>
           </div>
         </div>
       </nav>
@@ -114,10 +114,12 @@ const ApplyFlowHomepage = () => {
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6, delay: 0.4 }}
           >
-            <button className="bg-primary text-primary-foreground px-8 py-4 rounded-lg text-lg font-semibold hover:bg-primary/90 transition-colors inline-flex items-center gap-2">
-              Start Building
-              <ArrowRight className="h-5 w-5" />
-            </button>
+            <Link to="/login">
+              <button className="bg-primary text-primary-foreground px-8 py-4 rounded-lg text-lg font-semibold hover:bg-primary/90 transition-colors inline-flex items-center gap-2">
+                Start Building
+                <ArrowRight className="h-5 w-5" />
+              </button>
+            </Link>
           </motion.div>
         </div>
       </section>
@@ -191,10 +193,12 @@ const ApplyFlowHomepage = () => {
             transition={{ duration: 0.6 }}
             viewport={{ once: true }}
           >
-            <button className="bg-primary text-primary-foreground px-8 py-4 rounded-lg text-lg font-semibold hover:bg-primary/90 transition-colors inline-flex items-center gap-2">
-              Try It Now
-              <ArrowRight className="h-5 w-5" />
-            </button>
+            <Link to="/login">
+              <button className="bg-primary text-primary-foreground px-8 py-4 rounded-lg text-lg font-semibold hover:bg-primary/90 transition-colors inline-flex items-center gap-2">
+                Try It Now
+                <ArrowRight className="h-5 w-5" />
+              </button>
+            </Link>
           </motion.div>
         </div>
       </section>
