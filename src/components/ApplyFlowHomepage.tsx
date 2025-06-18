@@ -76,8 +76,8 @@ const ApplyFlowHomepage = () => {
             <a href="#job-tracker" className="text-sm text-foreground hover:text-primary transition-colors">
               Job Tracker
             </a>
-            <a href="#login" className="group flex items-center gap-2 text-sm text-foreground hover:text-primary transition-all duration-300">
-              Get Started
+            <a href="#login" className="group flex items-center gap-2 text-sm text-foreground hover:text-primary transition-all duration-300 border border-border rounded-full px-4 py-2 hover:scale-105 hover:border-primary">
+              <span className="group-hover:scale-105 transition-transform duration-300">Get Started</span>
               <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
                 <ArrowRight className="h-3 w-3 text-white" />
               </div>
