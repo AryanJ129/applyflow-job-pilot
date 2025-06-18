@@ -14,7 +14,7 @@ const Navbar = () => {
           </div>
           
           <div className="hidden md:flex items-center space-x-8">
-            <a href="#resume-builder" className="text-foreground hover:text-primary transition-colors">
+            <a href="/onboarding" className="text-foreground hover:text-primary transition-colors">
               Resume Builder
             </a>
             <a href="#job-tracker" className="text-foreground hover:text-primary transition-colors">
@@ -41,7 +41,7 @@ const Navbar = () => {
       {isMobileMenuOpen && (
         <div className="md:hidden bg-background border-t border-border">
           <div className="px-2 pt-2 pb-3 space-y-1">
-            <a href="#resume-builder" className="block px-3 py-2 text-foreground hover:text-primary">
+            <a href="/onboarding" className="block px-3 py-2 text-foreground hover:text-primary">
               Resume Builder
             </a>
             <a href="#job-tracker" className="block px-3 py-2 text-foreground hover:text-primary">

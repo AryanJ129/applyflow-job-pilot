@@ -9,7 +9,7 @@ const GlassNavbar = () => {
       <div className="flex items-center space-x-10 whitespace-nowrap">
         <span className="text-lg font-bold text-foreground">ApplyFlow</span>
         <div className="hidden md:flex items-center space-x-8">
-          <Link to="/resume" className="text-sm text-foreground hover:text-primary transition-all duration-300 hover:scale-110 transform">
+          <Link to="/onboarding" className="text-sm text-foreground hover:text-primary transition-all duration-300 hover:scale-110 transform">
             Resume Builder
           </Link>
           <Link to="/ats" className="text-sm text-foreground hover:text-primary transition-all duration-300 hover:scale-110 transform">
