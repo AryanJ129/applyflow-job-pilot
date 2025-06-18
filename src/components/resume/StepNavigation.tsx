@@ -2,6 +2,7 @@
 import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
+import { useResume } from './ResumeProvider';
 
 interface StepNavigationProps {
   currentStep: number;
@@ -18,6 +19,8 @@ const StepNavigation = ({
   onPrevious, 
   loading 
 }: StepNavigationProps) => {
+  const { canProceed } = useResume();
+
   return (
     <div className="flex justify-between items-center">
       <Button
@@ -36,11 +39,11 @@ const StepNavigation = ({
 
       <Button
         onClick={onNext}
-        disabled={currentStep === totalSteps && loading}
-        className="bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 rounded-full px-6 h-12"
+        disabled={currentStep === totalSteps || !canProceed()}
+        className="bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 rounded-full px-6 h-12 disabled:opacity-50"
       >
         {currentStep === totalSteps ? (
-          loading ? 'Saving...' : 'Save & Finish'
+          'Review & Export'
         ) : (
           <>
             Next

@@ -46,7 +46,7 @@ const BasicInfoStep = ({ data, onUpdate }: BasicInfoStepProps) => {
       <div className="space-y-4">
         <div>
           <Label htmlFor="fullName" className="text-foreground font-medium">
-            Full Name
+            Full Name *
           </Label>
           <Input
             id="fullName"
@@ -55,12 +55,13 @@ const BasicInfoStep = ({ data, onUpdate }: BasicInfoStepProps) => {
             value={data.fullName}
             onChange={(e) => handleChange('fullName', e.target.value)}
             className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] text-[hsl(222.2_84%_4.9%)] dark:text-white border-border"
+            required
           />
         </div>
 
         <div>
           <Label htmlFor="jobTitle" className="text-foreground font-medium">
-            Job Title
+            Job Title *
           </Label>
           <Input
             id="jobTitle"
@@ -69,13 +70,14 @@ const BasicInfoStep = ({ data, onUpdate }: BasicInfoStepProps) => {
             value={data.jobTitle}
             onChange={(e) => handleChange('jobTitle', e.target.value)}
             className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] text-[hsl(222.2_84%_4.9%)] dark:text-white border-border"
+            required
           />
         </div>
 
         <div>
           <div className="flex items-center justify-between mb-1">
             <Label htmlFor="summary" className="text-foreground font-medium">
-              Professional Summary
+              Professional Summary *
             </Label>
             <Button
               type="button"
@@ -95,6 +97,7 @@ const BasicInfoStep = ({ data, onUpdate }: BasicInfoStepProps) => {
             onChange={(e) => handleChange('summary', e.target.value)}
             rows={4}
             className="bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] text-[hsl(222.2_84%_4.9%)] dark:text-white border-border"
+            required
           />
         </div>
       </div>

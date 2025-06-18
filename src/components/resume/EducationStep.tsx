@@ -38,12 +38,12 @@ const EducationStep = ({ data, onUpdate }: EducationStepProps) => {
     onUpdate(newData);
   };
 
-  // Initialize with one empty education if none exist - moved outside conditional
+  // Initialize with one empty education if none exist
   React.useEffect(() => {
     if (data.length === 0) {
       addEducation();
     }
-  }, [data.length]); // Added dependency array
+  }, []);
 
   return (
     <div className="space-y-6">
@@ -81,7 +81,7 @@ const EducationStep = ({ data, onUpdate }: EducationStepProps) => {
             <CardContent className="space-y-4">
               <div>
                 <Label htmlFor={`degree-${index}`} className="text-foreground font-medium">
-                  Degree
+                  Degree *
                 </Label>
                 <Input
                   id={`degree-${index}`}
@@ -90,12 +90,13 @@ const EducationStep = ({ data, onUpdate }: EducationStepProps) => {
                   value={education.degree}
                   onChange={(e) => updateEducation(index, 'degree', e.target.value)}
                   className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
+                  required
                 />
               </div>
               
               <div>
                 <Label htmlFor={`institution-${index}`} className="text-foreground font-medium">
-                  Institution
+                  Institution *
                 </Label>
                 <Input
                   id={`institution-${index}`}
@@ -104,12 +105,13 @@ const EducationStep = ({ data, onUpdate }: EducationStepProps) => {
                   value={education.institution}
                   onChange={(e) => updateEducation(index, 'institution', e.target.value)}
                   className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
+                  required
                 />
               </div>
 
               <div>
                 <Label htmlFor={`graduationYear-${index}`} className="text-foreground font-medium">
-                  Graduation Year
+                  Graduation Year *
                 </Label>
                 <Input
                   id={`graduationYear-${index}`}
@@ -120,6 +122,7 @@ const EducationStep = ({ data, onUpdate }: EducationStepProps) => {
                   className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
                   min="1950"
                   max="2030"
+                  required
                 />
               </div>
             </CardContent>

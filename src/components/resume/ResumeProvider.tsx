@@ -39,6 +39,7 @@ interface ResumeContextType {
   user: User | null;
   isAuthChecking: boolean;
   totalSteps: number;
+  canProceed: () => boolean;
 }
 
 const ResumeContext = createContext<ResumeContextType | undefined>(undefined);
@@ -235,11 +236,52 @@ export const ResumeProvider = ({ children }: ResumeProviderProps) => {
     }
   };
 
+  const canProceed = () => {
+    switch (currentStep) {
+      case 1: // Basic Info
+        return resumeData.basic_info.fullName.trim() !== '' && 
+               resumeData.basic_info.jobTitle.trim() !== '' && 
+               resumeData.basic_info.summary.trim() !== '';
+      
+      case 2: // Work Experience
+        // Allow proceed if fresher (empty array) or if all work experiences are complete
+        if (resumeData.work_experience.length === 0) return true;
+        return resumeData.work_experience.every(exp => 
+          exp.jobTitle.trim() !== '' && 
+          exp.company.trim() !== '' && 
+          exp.startDate.trim() !== '' && 
+          exp.description.trim() !== ''
+        );
+      
+      case 3: // Education
+        return resumeData.education.length > 0 && 
+               resumeData.education.every(edu => 
+                 edu.degree.trim() !== '' && 
+                 edu.institution.trim() !== '' && 
+                 edu.graduationYear.trim() !== ''
+               );
+      
+      case 4: // Skills
+        return resumeData.skills.length > 0;
+      
+      default:
+        return true;
+    }
+  };
+
   const handleNext = () => {
+    if (!canProceed()) {
+      toast({
+        title: "Please complete all required fields",
+        description: "All fields marked with * are mandatory",
+        variant: "destructive"
+      });
+      return;
+    }
+    
     if (currentStep < totalSteps) {
       setCurrentStep(currentStep + 1);
     }
-    saveResumeData();
   };
 
   const handlePrevious = () => {
@@ -267,6 +309,7 @@ export const ResumeProvider = ({ children }: ResumeProviderProps) => {
     user,
     isAuthChecking,
     totalSteps,
+    canProceed,
   };
 
   return (
