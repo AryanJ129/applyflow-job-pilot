@@ -1,10 +1,8 @@
-
 "use client";
 
 import React from "react";
 import { motion } from "framer-motion";
 import { ArrowRight } from "lucide-react";
-import ScrollTracker from "./ScrollTracker";
 import FeatureSteps from "./FeatureSteps";
 import TestimonialsSection from "./TestimonialsSection";
 import Footer from "./Footer";
@@ -66,8 +64,6 @@ const ApplyFlowHomepage = () => {
 
   return (
     <div className="min-h-screen bg-background font-sans">
-      <ScrollTracker />
-      
       {/* Glass Navbar */}
       <nav className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 backdrop-blur-md bg-white/10 dark:bg-black/20 border border-border px-6 py-3 rounded-full shadow-lg transition-all">
         <div className="flex items-center space-x-8">
@@ -90,7 +86,7 @@ const ApplyFlowHomepage = () => {
       <section className="pt-32 pb-16 px-4 sm:px-6 lg:px-8">
         <div className="max-w-6xl mx-auto text-center">
           <motion.h1 
-            className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 bg-gradient-to-r from-[hsl(222.2,84%,4.9%)] to-[hsl(0,0%,100%)] dark:from-[hsl(210,40%,98%)] dark:to-[hsl(222.2,84%,4.9%)] bg-clip-text text-transparent"
+            className="text-4xl md:text-6xl lg:text-7xl font-bold leading-[1.1] mb-6 bg-gradient-to-b from-[hsl(222.2,84%,4.9%)] to-[hsl(0,0%,100%)] dark:from-[hsl(210,40%,98%)] dark:to-[hsl(222.2,84%,4.9%)] bg-clip-text text-transparent"
             initial={{ opacity: 0, y: 20 }}
             animate={{ opacity: 1, y: 0 }}
             transition={{ duration: 0.6 }}
