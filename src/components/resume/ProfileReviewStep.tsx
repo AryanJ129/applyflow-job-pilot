@@ -167,25 +167,10 @@ const ProfileReviewStep = ({ data, onSave, loading }: ProfileReviewStepProps) =>
                      hover:scale-[1.02] transition-all duration-300 
                      shadow-lg hover:shadow-xl
                      animate-pulse hover:animate-none"
-          style={{
-            background: loading 
-              ? 'linear-gradient(45deg, #8b5cf6, #06b6d4, #10b981)' 
-              : 'linear-gradient(45deg, #ec4899, #3b82f6, #eab308)',
-            backgroundSize: '200% 200%',
-            animation: loading ? 'none' : 'gradient 3s ease infinite'
-          }}
         >
           {loading ? 'Saving Profile...' : 'Save and Go to Dashboard'}
         </Button>
       </div>
-
-      <style jsx>{`
-        @keyframes gradient {
-          0% { background-position: 0% 50%; }
-          50% { background-position: 100% 50%; }
-          100% { background-position: 0% 50%; }
-        }
-      `}</style>
     </div>
   );
 };

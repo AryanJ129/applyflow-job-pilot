@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect, createContext, useContext } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -127,11 +126,7 @@ export const ResumeProvider = ({ children }: ResumeProviderProps) => {
       }
 
       if (data) {
-        // Safely cast JSONB data with proper type checking and fallbacks
-        const basicInfo = data.basic_info && typeof data.basic_info === 'object' && !Array.isArray(data.basic_info)
-          ? data.basic_info as { fullName?: string; jobTitle?: string; summary?: string }
-          : {};
-
+        // Map the profiles table data to our ResumeData structure
         const workExperience = Array.isArray(data.work_experience) 
           ? data.work_experience as Array<{
               jobTitle?: string;
@@ -157,9 +152,9 @@ export const ResumeProvider = ({ children }: ResumeProviderProps) => {
         setResumeData({
           id: data.id,
           basic_info: {
-            fullName: basicInfo.fullName || '',
-            jobTitle: basicInfo.jobTitle || '',
-            summary: basicInfo.summary || '',
+            fullName: data.full_name || '',
+            jobTitle: data.job_title || '',
+            summary: data.summary || '',
           },
           work_experience: workExperience.map(exp => ({
             jobTitle: exp.jobTitle || '',
