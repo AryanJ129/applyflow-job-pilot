@@ -1,3 +1,4 @@
+
 "use client";
 
 import React from "react";
@@ -75,8 +76,11 @@ const ApplyFlowHomepage = () => {
             <a href="#job-tracker" className="text-sm text-foreground hover:text-primary transition-colors">
               Job Tracker
             </a>
-            <a href="#login" className="text-sm text-foreground hover:text-primary transition-colors">
-              Login
+            <a href="#login" className="group flex items-center gap-2 text-sm text-foreground hover:text-primary transition-all duration-300">
+              Get Started
+              <div className="w-6 h-6 bg-black rounded-full flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
+                <ArrowRight className="h-3 w-3 text-white" />
+              </div>
             </a>
           </div>
         </div>
