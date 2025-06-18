@@ -93,12 +93,54 @@ const Resume = () => {
 
       if (data && data.length > 0) {
         const resume = data[0];
+        
+        // Safely cast JSONB data with proper type checking and fallbacks
+        const basicInfo = resume.basic_info && typeof resume.basic_info === 'object' && !Array.isArray(resume.basic_info)
+          ? resume.basic_info as { fullName?: string; jobTitle?: string; summary?: string }
+          : {};
+
+        const workExperience = Array.isArray(resume.work_experience) 
+          ? resume.work_experience as Array<{
+              jobTitle?: string;
+              company?: string;
+              startDate?: string;
+              endDate?: string;
+              description?: string;
+            }>
+          : [];
+
+        const education = Array.isArray(resume.education)
+          ? resume.education as Array<{
+              degree?: string;
+              institution?: string;
+              graduationYear?: string;
+            }>
+          : [];
+
+        const skills = Array.isArray(resume.skills)
+          ? resume.skills.filter((skill): skill is string => typeof skill === 'string')
+          : [];
+
         setResumeData({
           id: resume.id,
-          basic_info: resume.basic_info || { fullName: '', jobTitle: '', summary: '' },
-          work_experience: resume.work_experience || [],
-          education: resume.education || [],
-          skills: resume.skills || [],
+          basic_info: {
+            fullName: basicInfo.fullName || '',
+            jobTitle: basicInfo.jobTitle || '',
+            summary: basicInfo.summary || '',
+          },
+          work_experience: workExperience.map(exp => ({
+            jobTitle: exp.jobTitle || '',
+            company: exp.company || '',
+            startDate: exp.startDate || '',
+            endDate: exp.endDate || '',
+            description: exp.description || '',
+          })),
+          education: education.map(edu => ({
+            degree: edu.degree || '',
+            institution: edu.institution || '',
+            graduationYear: edu.graduationYear || '',
+          })),
+          skills,
         });
       }
     } catch (error: any) {
