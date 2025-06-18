@@ -27,7 +27,7 @@ const ResumeContent = () => {
       <div className="max-w-2xl mx-auto space-y-8">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-foreground mb-2">
-            Resume Builder
+            Onboarding
           </h1>
           <p className="text-muted-foreground">
             Build your professional resume in 5 simple steps
