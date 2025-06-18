@@ -67,10 +67,10 @@ const ApplyFlowHomepage = () => {
   return (
     <div className="min-h-screen bg-background font-sans">
       {/* Glass Navbar */}
-      <nav className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 backdrop-blur-md bg-white/10 dark:bg-black/20 border border-border px-6 py-3 rounded-full shadow-lg transition-all">
-        <div className="flex items-center space-x-8">
+      <nav className="fixed top-4 left-1/2 transform -translate-x-1/2 z-50 backdrop-blur-md bg-white/10 dark:bg-black/20 border border-border px-8 py-3 rounded-full shadow-lg transition-all">
+        <div className="flex items-center space-x-10 whitespace-nowrap">
           <span className="text-lg font-bold text-foreground">ApplyFlow</span>
-          <div className="hidden md:flex items-center space-x-6">
+          <div className="hidden md:flex items-center space-x-8">
             <Link to="/resume" className="text-sm text-foreground hover:text-primary transition-all duration-300 hover:scale-110 transform">
               Resume Builder
             </Link>
