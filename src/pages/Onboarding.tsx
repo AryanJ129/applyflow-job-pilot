@@ -13,11 +13,12 @@ const OnboardingContent = () => {
     handlePrevious, 
     loading, 
     user, 
-    isAuthChecking 
+    isAuthChecking,
+    hasExistingProfile 
   } = useOnboarding();
 
-  // Show loading spinner while checking authentication
-  if (isAuthChecking || !user) {
+  // Show loading spinner while checking authentication or profile
+  if (isAuthChecking || !user || hasExistingProfile === null) {
     return <LoadingSpinner />;
   }
 

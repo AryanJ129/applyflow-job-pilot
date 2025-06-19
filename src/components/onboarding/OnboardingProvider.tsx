@@ -41,6 +41,7 @@ interface OnboardingContextType {
   isAuthChecking: boolean;
   totalSteps: number;
   canProceed: () => boolean;
+  hasExistingProfile: boolean | null;
 }
 
 const OnboardingContext = createContext<OnboardingContextType | undefined>(undefined);
@@ -62,6 +63,7 @@ export const OnboardingProvider = ({ children }: OnboardingProviderProps) => {
   const [user, setUser] = useState<User | null>(null);
   const [loading, setLoading] = useState(false);
   const [isAuthChecking, setIsAuthChecking] = useState(true);
+  const [hasExistingProfile, setHasExistingProfile] = useState<boolean | null>(null);
   const navigate = useNavigate();
   const { toast } = useToast();
   
@@ -80,8 +82,8 @@ export const OnboardingProvider = ({ children }: OnboardingProviderProps) => {
   const totalSteps = 5;
 
   useEffect(() => {
-    // Check authentication and load existing profile data
-    const checkAuth = async () => {
+    // Check authentication and profile status
+    const checkAuthAndProfile = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         
@@ -91,16 +93,38 @@ export const OnboardingProvider = ({ children }: OnboardingProviderProps) => {
         }
 
         setUser(session.user);
-        await loadProfileData(session.user.id);
+        
+        // Check if user already has a profile
+        const { data: existingProfile, error } = await supabase
+          .from('profiles')
+          .select('id')
+          .eq('user_id', session.user.id)
+          .single();
+
+        if (error && error.code !== 'PGRST116') {
+          // Real error, not just "not found"
+          console.error('Error checking profile:', error);
+          throw error;
+        }
+
+        if (existingProfile) {
+          // User already has a profile, redirect to dashboard
+          setHasExistingProfile(true);
+          navigate('/dashboard');
+          return;
+        } else {
+          // No profile exists, proceed with onboarding
+          setHasExistingProfile(false);
+        }
       } catch (error) {
-        console.error('Auth check error:', error);
+        console.error('Auth/profile check error:', error);
         navigate('/login');
       } finally {
         setIsAuthChecking(false);
       }
     };
 
-    checkAuth();
+    checkAuthAndProfile();
 
     // Listen for auth changes
     const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
@@ -224,6 +248,9 @@ export const OnboardingProvider = ({ children }: OnboardingProviderProps) => {
         title: "Success",
         description: "Profile saved successfully",
       });
+
+      // After successful save, redirect to dashboard
+      navigate('/dashboard');
     } catch (error: any) {
       console.error('Error saving profile:', error);
       toast({
@@ -311,6 +338,7 @@ export const OnboardingProvider = ({ children }: OnboardingProviderProps) => {
     isAuthChecking,
     totalSteps,
     canProceed,
+    hasExistingProfile,
   };
 
   return (
