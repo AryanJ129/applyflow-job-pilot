@@ -10,7 +10,6 @@ const OnboardingContent = () => {
   const { 
     currentStep, 
     totalSteps, 
-    handleNext, 
     handlePrevious, 
     loading, 
     user, 
@@ -21,6 +20,9 @@ const OnboardingContent = () => {
   if (isAuthChecking || !user) {
     return <LoadingSpinner />;
   }
+
+  // Dummy function for onNext since button is removed
+  const handleNext = () => {};
 
   return (
     <div className="min-h-screen bg-background py-10 px-6">
