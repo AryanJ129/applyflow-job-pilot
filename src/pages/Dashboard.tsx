@@ -91,7 +91,7 @@ const Dashboard = () => {
       title: "Update Profile",
       description: "Make changes to your personal information or career goals",
       ctaText: "Edit Profile",
-      ctaLink: "/onboarding",
+      ctaLink: "/profile",
       bgColor: "bg-orange-50"
     }
   ];
