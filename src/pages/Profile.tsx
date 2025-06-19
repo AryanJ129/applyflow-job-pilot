@@ -1,4 +1,3 @@
-
 import React, { useState, useEffect } from 'react';
 import { supabase } from '@/integrations/supabase/client';
 import { useNavigate } from 'react-router-dom';
@@ -8,7 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { User, Plus, X, LogOut } from 'lucide-react';
+import { User, Plus, X, LogOut, ArrowLeft } from 'lucide-react';
 
 interface ProfileData {
   id: string;
@@ -206,8 +205,19 @@ const Profile = () => {
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-3xl mx-auto px-6 py-10 space-y-8">
-        {/* Header */}
+        {/* Header with Back Button */}
         <div className="text-center">
+          <div className="flex items-center justify-between mb-6">
+            <Button
+              onClick={() => navigate('/dashboard')}
+              variant="outline"
+              className="text-[#1f1f1f] border-[#1f1f1f] hover:bg-[#1f1f1f] hover:text-white"
+            >
+              <ArrowLeft className="w-4 h-4 mr-2" />
+              Back to Dashboard
+            </Button>
+            <div></div> {/* Spacer for centering */}
+          </div>
           <h1 className="text-3xl font-bold text-[hsl(222.2_84%_4.9%)] mb-2">
             Profile Settings
           </h1>
