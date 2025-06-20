@@ -3,6 +3,7 @@ import React from 'react';
 import { Button } from '@/components/ui/button';
 import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useOnboarding } from './OnboardingProvider';
+import { useNavigate } from 'react-router-dom';
 
 interface StepNavigationProps {
   currentStep: number;
@@ -19,7 +20,13 @@ const StepNavigation = ({
   onPrevious, 
   loading 
 }: StepNavigationProps) => {
-  const { canProceed } = useOnboarding();
+  const { canProceed, saveProfileData } = useOnboarding();
+  const navigate = useNavigate();
+
+  const handleCompleteSetup = async () => {
+    await saveProfileData();
+    navigate('/dashboard');
+  };
 
   return (
     <div className="flex justify-between items-center">
@@ -38,8 +45,8 @@ const StepNavigation = ({
       </div>
 
       <Button
-        onClick={onNext}
-        disabled={currentStep === totalSteps || !canProceed() || loading}
+        onClick={currentStep === totalSteps ? handleCompleteSetup : onNext}
+        disabled={currentStep < totalSteps && !canProceed() || loading}
         className="bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 rounded-full px-6 h-12 disabled:opacity-50"
       >
         {currentStep === totalSteps ? (
