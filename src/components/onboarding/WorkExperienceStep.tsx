@@ -5,7 +5,11 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Plus, Trash2, GraduationCap } from 'lucide-react';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
+import { Plus, Trash2, GraduationCap, CalendarIcon } from 'lucide-react';
+import { format } from 'date-fns';
+import { cn } from '@/lib/utils';
 
 interface WorkExperience {
   jobTitle: string;
@@ -56,6 +60,21 @@ const WorkExperienceStep = ({ data, onUpdate, isFresher, onFresherChange }: Work
       // Add one empty work experience when not fresher
       addWorkExperience();
     }
+  };
+
+  const handleDateSelect = (index: number, field: 'startDate' | 'endDate', date: Date | undefined) => {
+    if (date) {
+      const formattedDate = format(date, 'yyyy-MM');
+      updateWorkExperience(index, field, formattedDate);
+    } else {
+      updateWorkExperience(index, field, '');
+    }
+  };
+
+  const parseDate = (dateString: string): Date | undefined => {
+    if (!dateString) return undefined;
+    const [year, month] = dateString.split('-');
+    return new Date(parseInt(year), parseInt(month) - 1, 1);
   };
 
   // Initialize with one empty work experience if not fresher and no data
@@ -150,28 +169,63 @@ const WorkExperienceStep = ({ data, onUpdate, isFresher, onFresherChange }: Work
                     <Label htmlFor={`startDate-${index}`} className="text-foreground font-medium">
                       Start Date *
                     </Label>
-                    <Input
-                      id={`startDate-${index}`}
-                      type="month"
-                      value={work.startDate}
-                      onChange={(e) => updateWorkExperience(index, 'startDate', e.target.value)}
-                      className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
-                      required
-                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border",
+                            !work.startDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {work.startDate ? format(parseDate(work.startDate)!, "MMMM yyyy") : "Pick start date"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={parseDate(work.startDate)}
+                          onSelect={(date) => handleDateSelect(index, 'startDate', date)}
+                          disabled={(date) => date > new Date()}
+                          className={cn("p-3 pointer-events-auto")}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                   
                   <div>
                     <Label htmlFor={`endDate-${index}`} className="text-foreground font-medium">
                       End Date
                     </Label>
-                    <Input
-                      id={`endDate-${index}`}
-                      type="month"
-                      value={work.endDate}
-                      onChange={(e) => updateWorkExperience(index, 'endDate', e.target.value)}
-                      className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
-                      placeholder="Leave empty if current"
-                    />
+                    <Popover>
+                      <PopoverTrigger asChild>
+                        <Button
+                          variant="outline"
+                          className={cn(
+                            "w-full justify-start text-left font-normal mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border",
+                            !work.endDate && "text-muted-foreground"
+                          )}
+                        >
+                          <CalendarIcon className="mr-2 h-4 w-4" />
+                          {work.endDate ? format(parseDate(work.endDate)!, "MMMM yyyy") : "Leave empty if current"}
+                        </Button>
+                      </PopoverTrigger>
+                      <PopoverContent className="w-auto p-0" align="start">
+                        <Calendar
+                          mode="single"
+                          selected={parseDate(work.endDate)}
+                          onSelect={(date) => handleDateSelect(index, 'endDate', date)}
+                          disabled={(date) => {
+                            const startDate = parseDate(work.startDate);
+                            return date > new Date() || (startDate && date < startDate);
+                          }}
+                          className={cn("p-3 pointer-events-auto")}
+                          initialFocus
+                        />
+                      </PopoverContent>
+                    </Popover>
                   </div>
                 </div>
 
