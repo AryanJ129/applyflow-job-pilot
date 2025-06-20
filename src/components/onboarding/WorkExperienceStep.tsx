@@ -1,15 +1,10 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
-import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
-import { Calendar } from '@/components/ui/calendar';
-import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
-import { Plus, Trash2, GraduationCap, CalendarIcon } from 'lucide-react';
-import { format } from 'date-fns';
-import { cn } from '@/lib/utils';
+import { Plus } from 'lucide-react';
+import WorkExperienceForm from './WorkExperienceForm';
+import FresherToggle from './FresherToggle';
+import FresherDisplay from './FresherDisplay';
 
 interface WorkExperience {
   jobTitle: string;
@@ -62,21 +57,6 @@ const WorkExperienceStep = ({ data, onUpdate, isFresher, onFresherChange }: Work
     }
   };
 
-  const handleDateSelect = (index: number, field: 'startDate' | 'endDate', date: Date | undefined) => {
-    if (date) {
-      const formattedDate = format(date, 'yyyy-MM');
-      updateWorkExperience(index, field, formattedDate);
-    } else {
-      updateWorkExperience(index, field, '');
-    }
-  };
-
-  const parseDate = (dateString: string): Date | undefined => {
-    if (!dateString) return undefined;
-    const [year, month] = dateString.split('-');
-    return new Date(parseInt(year), parseInt(month) - 1, 1);
-  };
-
   // Initialize with one empty work experience if not fresher and no data
   React.useEffect(() => {
     if (!isFresher && data.length === 0) {
@@ -95,156 +75,19 @@ const WorkExperienceStep = ({ data, onUpdate, isFresher, onFresherChange }: Work
         </p>
       </div>
 
-      <div className="flex justify-center mb-6">
-        <Button
-          onClick={handleFresherToggle}
-          variant={isFresher ? "default" : "outline"}
-          className={`flex items-center gap-2 h-12 px-6 rounded-full transition-all duration-300 ${
-            isFresher 
-              ? 'bg-gradient-to-r from-green-600 to-green-500 text-white hover:from-green-700 hover:to-green-600 shadow-lg' 
-              : 'border-dashed border-2 text-muted-foreground hover:text-foreground hover:border-border'
-          }`}
-        >
-          <GraduationCap className="w-4 h-4" />
-          {isFresher ? "I'm just starting my career" : "I'm just starting my career"}
-        </Button>
-      </div>
+      <FresherToggle isFresher={isFresher} onToggle={handleFresherToggle} />
 
       {!isFresher && (
         <div className="space-y-4">
           {data.map((work, index) => (
-            <Card key={index} className="bg-white/50 dark:bg-[hsl(217.2_32.6%_17.5%)]/50 border-border">
-              <CardHeader>
-                <div className="flex items-center justify-between">
-                  <CardTitle className="text-lg text-foreground">
-                    {work.jobTitle || `Experience ${index + 1}`}
-                    {work.company && ` - ${work.company}`}
-                  </CardTitle>
-                  {data.length > 1 && (
-                    <Button
-                      variant="ghost"
-                      size="sm"
-                      onClick={() => removeWorkExperience(index)}
-                      className="text-red-600 hover:text-red-700 hover:bg-red-50 dark:text-red-400 dark:hover:bg-red-950"
-                    >
-                      <Trash2 className="w-4 h-4" />
-                    </Button>
-                  )}
-                </div>
-              </CardHeader>
-              
-              <CardContent className="space-y-4">
-                <div>
-                  <Label htmlFor={`jobTitle-${index}`} className="text-foreground font-medium">
-                    Job Title *
-                  </Label>
-                  <Input
-                    id={`jobTitle-${index}`}
-                    type="text"
-                    placeholder="e.g., Software Engineer"
-                    value={work.jobTitle}
-                    onChange={(e) => updateWorkExperience(index, 'jobTitle', e.target.value)}
-                    className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
-                    required
-                  />
-                </div>
-                
-                <div>
-                  <Label htmlFor={`company-${index}`} className="text-foreground font-medium">
-                    Company *
-                  </Label>
-                  <Input
-                    id={`company-${index}`}
-                    type="text"
-                    placeholder="e.g., Google Inc."
-                    value={work.company}
-                    onChange={(e) => updateWorkExperience(index, 'company', e.target.value)}
-                    className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
-                    required
-                  />
-                </div>
-
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                  <div>
-                    <Label htmlFor={`startDate-${index}`} className="text-foreground font-medium">
-                      Start Date *
-                    </Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border",
-                            !work.startDate && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {work.startDate ? format(parseDate(work.startDate)!, "MMMM yyyy") : "Pick start date"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={parseDate(work.startDate)}
-                          onSelect={(date) => handleDateSelect(index, 'startDate', date)}
-                          disabled={(date) => date > new Date()}
-                          className={cn("p-3 pointer-events-auto")}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                  
-                  <div>
-                    <Label htmlFor={`endDate-${index}`} className="text-foreground font-medium">
-                      End Date
-                    </Label>
-                    <Popover>
-                      <PopoverTrigger asChild>
-                        <Button
-                          variant="outline"
-                          className={cn(
-                            "w-full justify-start text-left font-normal mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border",
-                            !work.endDate && "text-muted-foreground"
-                          )}
-                        >
-                          <CalendarIcon className="mr-2 h-4 w-4" />
-                          {work.endDate ? format(parseDate(work.endDate)!, "MMMM yyyy") : "Leave empty if current"}
-                        </Button>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-auto p-0" align="start">
-                        <Calendar
-                          mode="single"
-                          selected={parseDate(work.endDate)}
-                          onSelect={(date) => handleDateSelect(index, 'endDate', date)}
-                          disabled={(date) => {
-                            const startDate = parseDate(work.startDate);
-                            return date > new Date() || (startDate && date < startDate);
-                          }}
-                          className={cn("p-3 pointer-events-auto")}
-                          initialFocus
-                        />
-                      </PopoverContent>
-                    </Popover>
-                  </div>
-                </div>
-
-                <div>
-                  <Label htmlFor={`description-${index}`} className="text-foreground font-medium">
-                    Job Description *
-                  </Label>
-                  <Textarea
-                    id={`description-${index}`}
-                    placeholder="Describe your key responsibilities, achievements, and skills used in this role..."
-                    value={work.description}
-                    onChange={(e) => updateWorkExperience(index, 'description', e.target.value)}
-                    rows={4}
-                    className="mt-1 bg-white dark:bg-[hsl(217.2_32.6%_17.5%)] border-border"
-                    required
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            <WorkExperienceForm
+              key={index}
+              work={work}
+              index={index}
+              canRemove={data.length > 1}
+              onUpdate={(field, value) => updateWorkExperience(index, field, value)}
+              onRemove={() => removeWorkExperience(index)}
+            />
           ))}
 
           <Button
@@ -258,19 +101,7 @@ const WorkExperienceStep = ({ data, onUpdate, isFresher, onFresherChange }: Work
         </div>
       )}
 
-      {isFresher && (
-        <div className="text-center py-8">
-          <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-6 max-w-md mx-auto">
-            <GraduationCap className="w-12 h-12 text-blue-600 dark:text-blue-400 mx-auto mb-4" />
-            <h3 className="text-lg font-semibold text-blue-800 dark:text-blue-200 mb-2">
-              Starting Your Career Journey
-            </h3>
-            <p className="text-blue-600 dark:text-blue-300 text-sm">
-              That's perfectly fine! We'll help you highlight your education, skills, and potential to employers.
-            </p>
-          </div>
-        </div>
-      )}
+      {isFresher && <FresherDisplay />}
     </div>
   );
 };
