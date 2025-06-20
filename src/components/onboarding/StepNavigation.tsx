@@ -1,7 +1,7 @@
 
 import React from 'react';
 import { Button } from '@/components/ui/button';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ArrowRight } from 'lucide-react';
 import { useOnboarding } from './OnboardingProvider';
 
 interface StepNavigationProps {
@@ -37,8 +37,20 @@ const StepNavigation = ({
         {currentStep} of {totalSteps}
       </div>
 
-      {/* Removed the Next/Complete Setup button */}
-      <div></div>
+      <Button
+        onClick={onNext}
+        disabled={currentStep === totalSteps || !canProceed() || loading}
+        className="bg-gradient-to-r from-blue-600 to-blue-500 text-white hover:from-blue-700 hover:to-blue-600 rounded-full px-6 h-12 disabled:opacity-50"
+      >
+        {currentStep === totalSteps ? (
+          loading ? 'Saving...' : 'Complete Setup'
+        ) : (
+          <>
+            Next
+            <ArrowRight className="w-4 h-4 ml-2" />
+          </>
+        )}
+      </Button>
     </div>
   );
 };
