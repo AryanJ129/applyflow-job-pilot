@@ -8,7 +8,6 @@ import { toast } from '@/components/ui/use-toast';
 import FileUploadCard from '@/components/ats/FileUploadCard';
 import ResultsSection from '@/components/ats/ResultsSection';
 import BackButton from '@/components/auth/BackButton';
-import { extractTextFromPDF } from '@/utils/pdfParser';
 
 const AtsChecker = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -34,7 +33,7 @@ const AtsChecker = () => {
         .from('error_logs')
         .insert({
           name,
-          error: error.substring(0, 1000) // Limit error message length
+          error: error.substring(0, 1000)
         });
     } catch (logErr) {
       console.error('Failed to log error to database:', logErr);
@@ -52,27 +51,52 @@ const AtsChecker = () => {
     setIsScanning(true);
     
     try {
-      // Extract text from PDF
-      console.log('Extracting text from PDF...');
-      const resumeText = await extractTextFromPDF(uploadedFile);
+      console.log('Starting PDF analysis...');
       
-      if (!resumeText || resumeText.length < 50) {
-        const errorMsg = `Could not extract sufficient text from PDF. Extracted length: ${resumeText?.length || 0}`;
-        await logError('PDF Text Extraction Error', errorMsg);
-        
+      // Create FormData for the PDF file
+      const formData = new FormData();
+      formData.append('file', uploadedFile);
+
+      // Call the new PDF parser edge function
+      const { data: pdfData, error: pdfError } = await supabase.functions.invoke('pdf-parser', {
+        body: formData,
+      });
+
+      if (pdfError) {
+        await logError('PDF Parser Function Error', `${pdfError.message || 'Unknown error'}\nDetails: ${JSON.stringify(pdfError)}`);
+        throw pdfError;
+      }
+
+      if (pdfData.error) {
+        await logError('PDF Parsing Error', pdfData.error);
         toast({
-          title: "Error",
-          description: "Could not extract text from the PDF. Please ensure it's a valid resume with readable content.",
+          title: "PDF Parsing Failed",
+          description: pdfData.error,
           variant: "destructive",
         });
         setIsScanning(false);
         return;
       }
 
-      console.log(`Extracted ${resumeText.length} characters from PDF`);
+      const resumeText = pdfData.text;
+      
+      if (!resumeText || resumeText.length < 50) {
+        const errorMsg = `Could not extract sufficient text from PDF. Extracted length: ${resumeText?.length || 0}`;
+        await logError('PDF Text Extraction Error', errorMsg);
+        
+        toast({
+          title: "LaTeX PDF Detected",
+          description: "This appears to be a LaTeX-generated PDF. Please try uploading a Word document or converting your PDF to a different format.",
+          variant: "destructive",
+        });
+        setIsScanning(false);
+        return;
+      }
+
+      console.log(`Successfully extracted ${resumeText.length} characters from PDF`);
       console.log('Sending to DeepSeek for analysis...');
       
-      // Call the edge function for analysis
+      // Call the ATS analysis function
       const { data, error } = await supabase.functions.invoke('ats-scan', {
         body: { resumeText },
       });
@@ -105,7 +129,7 @@ const AtsChecker = () => {
           header: data.header || 0,
           bodyContent: data.content || 0,
           formatting: data.structure || 0,
-          contact: data.header || 0, // Using header score for contact
+          contact: data.header || 0,
           structure: data.workExperience || 0
         },
         whatWentWell: Array.isArray(data.whatWentWell) ? data.whatWentWell : [],
@@ -129,7 +153,7 @@ const AtsChecker = () => {
       
       toast({
         title: "Analysis Failed",
-        description: "There was an error analyzing your resume. Please try again or contact support if the issue persists.",
+        description: "There was an error analyzing your resume. If you're using a LaTeX-generated PDF, please try uploading a Word document instead.",
         variant: "destructive",
       });
     } finally {
@@ -150,6 +174,12 @@ const AtsChecker = () => {
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
             Upload your resume and get instant AI-powered feedback on how ATS-friendly it is.
           </p>
+          <div className="mt-4 p-4 bg-blue-50 rounded-lg">
+            <p className="text-sm text-blue-700">
+              <strong>Note:</strong> If you're using a LaTeX-generated PDF and experiencing issues, 
+              try converting your resume to Word format first for better text extraction.
+            </p>
+          </div>
         </div>
 
         {/* Upload Card */}
