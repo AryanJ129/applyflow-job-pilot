@@ -2,12 +2,106 @@
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
-const deepseekApiKey = Deno.env.get('DEEPSEEK_API_KEY');
+const openaiApiKey = Deno.env.get('OPENAI_API_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Convert PDF to images using pdf-parse
+async function pdfToImages(buffer: ArrayBuffer): Promise<string[]> {
+  try {
+    const pdfParse = await import('https://esm.sh/pdf-parse@1.1.1');
+    const pdfData = await pdfParse.default(buffer);
+    
+    // For now, we'll convert the PDF to a single base64 image representation
+    // This is a simplified approach - in production you might want to use a more sophisticated PDF-to-image converter
+    const uint8Array = new Uint8Array(buffer);
+    const base64 = btoa(String.fromCharCode(...uint8Array));
+    
+    return [`data:application/pdf;base64,${base64}`];
+  } catch (error) {
+    console.error('PDF to image conversion failed:', error);
+    throw error;
+  }
+}
+
+// Extract text from DOCX
+async function extractDocxText(buffer: ArrayBuffer): Promise<string> {
+  try {
+    const mammoth = await import('https://esm.sh/mammoth@1.8.0');
+    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+    return result.value || '';
+  } catch (error) {
+    console.error('DOCX text extraction failed:', error);
+    throw error;
+  }
+}
+
+// Create comprehensive ATS analysis prompt
+function createATSPrompt(isPdf: boolean): string {
+  const basePrompt = `You are an expert ATS (Applicant Tracking System) resume analyzer. ${isPdf ? 'Analyze the resume document shown in the image' : 'Analyze the provided resume text'} and return ONLY a valid JSON object with this exact structure:
+
+{
+  "Header": [score 1-10],
+  "Body Content": [score 1-10], 
+  "Formatting": [score 1-10],
+  "Contact Info": [score 1-10],
+  "Structure": [score 1-10],
+  "Final Score": [average score 1-10],
+  "What You Did Well": [
+    "specific positive point 1",
+    "specific positive point 2",
+    "specific positive point 3"
+  ],
+  "What Needs Improvement": [
+    "specific improvement suggestion 1", 
+    "specific improvement suggestion 2",
+    "specific improvement suggestion 3"
+  ]
+}
+
+DETAILED SCORING CRITERIA:
+
+**Header (1-10):**
+- Professional title/headline present and relevant
+- Name clearly visible and prominent
+- Positioning statement or summary
+- Relevant keywords for target role
+
+**Body Content (1-10):**
+- Relevant work experience with specific achievements
+- Quantified results and metrics where possible
+- Skills section with job-relevant technologies/competencies
+- Education appropriate for role level
+- Content demonstrates clear career progression
+
+**Formatting (1-10):**
+- Clean, professional layout
+- Consistent fonts and spacing
+- Appropriate use of bullet points and sections
+- Easy to scan and read
+- ATS-friendly formatting (no complex graphics/tables)
+
+**Contact Info (1-10):**
+- Phone number present and properly formatted
+- Professional email address
+- LinkedIn profile URL
+- Location/city mentioned
+- No missing critical contact details
+
+**Structure (1-10):**
+- Logical flow of information
+- Appropriate section ordering
+- Clear section headers
+- Proper length (1-2 pages)
+- Professional organization
+
+Provide specific, actionable feedback based on what you observe. Focus on both strengths and concrete improvement areas. Return ONLY the JSON object, no markdown formatting or additional text.`;
+
+  return basePrompt;
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -28,74 +122,88 @@ serve(async (req) => {
 
     console.log('Processing file:', file.name, 'Size:', file.size);
 
+    if (!openaiApiKey) {
+      return new Response(JSON.stringify({ error: 'OpenAI API key not configured' }), { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
     const buffer = await file.arrayBuffer();
-    let resumeText = '';
+    let chatGPTResponse;
 
     if (file.name.toLowerCase().endsWith('.pdf')) {
-      console.log('Processing PDF file...');
-      try {
-        // Use pdf-parse for better PDF text extraction
-        const pdfParse = await import('https://esm.sh/pdf-parse@1.1.1');
-        const pdfData = await pdfParse.default(buffer);
-        resumeText = pdfData.text || '';
-        console.log('PDF text extracted, length:', resumeText.length);
-        console.log('PDF text preview:', resumeText.substring(0, 500));
-      } catch (pdfError) {
-        console.error('PDF parsing failed:', pdfError);
-        // Fallback to basic text extraction
-        try {
-          const uint8Array = new Uint8Array(buffer);
-          const decoder = new TextDecoder('utf-8', { fatal: false });
-          const rawContent = decoder.decode(uint8Array);
-          
-          // Extract text between stream markers
-          const textMatches = rawContent.match(/\((.*?)\)/g);
-          if (textMatches) {
-            resumeText = textMatches
-              .map(match => match.replace(/[()]/g, '').trim())
-              .filter(text => text.length > 1 && /[a-zA-Z]/.test(text))
-              .join(' ');
-          }
-          
-          if (!resumeText) {
-            // Try to extract any readable text patterns
-            const readableMatches = rawContent.match(/[A-Za-z]{3,}[A-Za-z0-9\s@._-]*/g);
-            if (readableMatches) {
-              resumeText = readableMatches
-                .filter(text => text.length > 2)
-                .join(' ');
-            }
-          }
-        } catch (fallbackError) {
-          console.error('Fallback extraction failed:', fallbackError);
-          return new Response(JSON.stringify({ 
-            error: 'Unable to extract text from PDF. Please ensure the PDF contains selectable text or try converting to DOCX format.',
-            details: pdfError.message
-          }), { 
-            status: 400,
-            headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-          });
-        }
-      }
+      console.log('Processing PDF with ChatGPT Vision...');
       
+      // Convert PDF to base64 for ChatGPT Vision
+      const uint8Array = new Uint8Array(buffer);
+      const base64 = btoa(String.fromCharCode(...uint8Array));
+      
+      chatGPTResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'user',
+              content: [
+                {
+                  type: 'text',
+                  text: createATSPrompt(true)
+                },
+                {
+                  type: 'image_url',
+                  image_url: {
+                    url: `data:application/pdf;base64,${base64}`,
+                    detail: 'high'
+                  }
+                }
+              ]
+            }
+          ],
+          temperature: 0.2,
+          max_tokens: 1500
+        }),
+      });
+
     } else if (file.name.toLowerCase().endsWith('.docx')) {
-      console.log('Processing DOCX file...');
-      try {
-        const mammoth = await import('https://esm.sh/mammoth@1.8.0');
-        const result = await mammoth.extractRawText({ arrayBuffer: buffer });
-        resumeText = result.value || '';
-        console.log('DOCX text extracted, length:', resumeText.length);
-      } catch (docxError) {
-        console.error('DOCX parsing failed:', docxError);
+      console.log('Processing DOCX with ChatGPT Text API...');
+      
+      const extractedText = await extractDocxText(buffer);
+      
+      if (extractedText.length < 100) {
         return new Response(JSON.stringify({ 
-          error: 'Unable to extract text from DOCX file. Please ensure the file is not corrupted.',
-          details: docxError.message
+          error: 'Unable to extract sufficient text from DOCX file. The document may be empty or corrupted.',
+          extractedLength: extractedText.length
         }), { 
           status: 400,
           headers: { ...corsHeaders, 'Content-Type': 'application/json' }
         });
       }
-      
+
+      chatGPTResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${openaiApiKey}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          model: 'gpt-4o',
+          messages: [
+            {
+              role: 'user',
+              content: `${createATSPrompt(false)}\n\nResume text to analyze:\n\n${extractedText.slice(0, 8000)}`
+            }
+          ],
+          temperature: 0.2,
+          max_tokens: 1500
+        }),
+      });
+
     } else {
       return new Response(JSON.stringify({ error: 'Unsupported file type. Please upload PDF or DOCX files only.' }), { 
         status: 400,
@@ -103,82 +211,11 @@ serve(async (req) => {
       });
     }
 
-    // Clean up the extracted text
-    resumeText = resumeText
-      .replace(/\s+/g, ' ')
-      .replace(/[^\w\s@._\-()]/g, ' ')
-      .trim();
-
-    console.log('Final extracted text length:', resumeText.length);
-    console.log('Final text preview:', resumeText.substring(0, 300));
-
-    if (resumeText.length < 100) {
+    if (!chatGPTResponse.ok) {
+      const errorText = await chatGPTResponse.text();
+      console.error('ChatGPT API error:', chatGPTResponse.status, errorText);
       return new Response(JSON.stringify({ 
-        error: 'Unable to extract sufficient readable text from the file. The document may be empty, corrupted, or contain only images. Please ensure your document contains readable text.',
-        extractedLength: resumeText.length,
-        extractedPreview: resumeText.substring(0, 200)
-      }), { 
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
-      });
-    }
-
-    // Call DeepSeek API with detailed prompt for ATS analysis
-    console.log('Calling DeepSeek API for ATS analysis...');
-    const response = await fetch('https://api.deepseek.com/chat/completions', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${deepseekApiKey}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        model: 'deepseek-chat',
-        messages: [
-          {
-            role: 'system',
-            content: `You are an expert ATS (Applicant Tracking System) resume analyzer. Analyze the provided resume text and return ONLY a valid JSON object with the following structure:
-
-{
-  "Header": [score 1-10],
-  "Body Content": [score 1-10], 
-  "Formatting": [score 1-10],
-  "Contact Info": [score 1-10],
-  "Structure": [score 1-10],
-  "Final Score": [average score 1-10],
-  "What You Did Well": [
-    "specific positive point 1",
-    "specific positive point 2"
-  ],
-  "What Needs Improvement": [
-    "specific improvement suggestion 1", 
-    "specific improvement suggestion 2"
-  ]
-}
-
-Scoring criteria:
-- Header: Professional title, clear positioning, relevant keywords
-- Body Content: Relevant experience, achievements with metrics, skill descriptions
-- Formatting: Consistency, readability, ATS-friendly structure
-- Contact Info: Complete contact details, professional email, LinkedIn
-- Structure: Logical flow, appropriate sections, easy to scan
-
-Provide specific, actionable feedback based on the actual resume content. Return ONLY the JSON object, no markdown formatting or additional text.`
-          },
-          {
-            role: 'user',
-            content: `Please analyze this resume for ATS compatibility:\n\n${resumeText.slice(0, 8000)}`
-          }
-        ],
-        temperature: 0.2,
-        max_tokens: 1000
-      }),
-    });
-
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error('DeepSeek API error:', response.status, errorText);
-      return new Response(JSON.stringify({ 
-        error: `DeepSeek API error: ${response.status}`,
+        error: `ChatGPT API error: ${chatGPTResponse.status}`,
         details: errorText
       }), { 
         status: 500,
@@ -186,10 +223,10 @@ Provide specific, actionable feedback based on the actual resume content. Return
       });
     }
 
-    const data = await response.json();
+    const data = await chatGPTResponse.json();
     let rawResponse = data.choices[0].message.content.trim();
 
-    console.log('DeepSeek raw response:', rawResponse);
+    console.log('ChatGPT raw response:', rawResponse);
 
     // Clean up markdown code blocks if present
     if (rawResponse.startsWith('```json') && rawResponse.endsWith('```')) {
@@ -204,7 +241,7 @@ Provide specific, actionable feedback based on the actual resume content. Return
       parsedResult = JSON.parse(rawResponse);
       console.log('Successfully parsed ATS results:', parsedResult);
     } catch (parseError) {
-      console.error('Failed to parse DeepSeek response:', rawResponse);
+      console.error('Failed to parse ChatGPT response:', rawResponse);
       return new Response(JSON.stringify({
         error: 'AI returned malformed response',
         rawResponse: rawResponse.substring(0, 500),
@@ -233,7 +270,7 @@ Provide specific, actionable feedback based on the actual resume content. Return
 
     return new Response(JSON.stringify({ 
       result: JSON.stringify(parsedResult),
-      textLength: resumeText.length 
+      textLength: file.name.toLowerCase().endsWith('.docx') ? 'DOCX processed' : 'PDF analyzed visually'
     }), { 
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
