@@ -1,15 +1,29 @@
-
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
+import { useNavigate } from 'react-router-dom';
+import { supabase } from '@/integrations/supabase/client';
 import FileUploadCard from '@/components/ats/FileUploadCard';
 import ResultsSection from '@/components/ats/ResultsSection';
+import BackButton from '@/components/auth/BackButton';
 
 const AtsChecker = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
   const [isScanning, setIsScanning] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [results, setResults] = useState<any>(null);
+  const navigate = useNavigate();
+
+  useEffect(() => {
+    // Check if user is authenticated
+    const checkAuth = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        navigate('/login');
+      }
+    };
+    checkAuth();
+  }, [navigate]);
 
   // Mock data for results
   const mockResults = {
@@ -54,7 +68,9 @@ const AtsChecker = () => {
   };
 
   return (
-    <div className="min-h-screen bg-white">
+    <div className="min-h-screen bg-white relative">
+      <BackButton />
+      
       <div className="max-w-4xl mx-auto px-6 py-12">
         {/* Header */}
         <div className="text-center mb-12">
