@@ -32,13 +32,13 @@ serve(async (req) => {
     let resumeText = '';
 
     if (file.name.toLowerCase().endsWith('.pdf')) {
-      console.log('Processing PDF file...');
+      console.log('Processing PDF file with pdfjs...');
       try {
-        resumeText = await extractTextFromPDF(buffer);
+        resumeText = await extractTextFromPDFWithPdfjs(buffer);
       } catch (pdfError) {
         console.error('PDF parsing failed:', pdfError);
         return new Response(JSON.stringify({ 
-          error: 'Unable to extract text from PDF. Please try converting your PDF to a Word document (.docx) or ensure it contains selectable text (not scanned images).',
+          error: 'Unable to extract text from PDF. Please ensure the PDF contains selectable text and is not a scanned image, or try converting to DOCX format.',
           details: pdfError.message
         }), { 
           status: 400,
@@ -145,7 +145,7 @@ Only return this JSON object and nothing else.`
       console.error('Failed to parse DeepSeek response:', raw);
       return new Response(JSON.stringify({
         error: 'AI returned malformed response',
-        raw: raw.substring(0, 500) // Limit error output
+        raw: raw.substring(0, 500)
       }), { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -171,24 +171,82 @@ Only return this JSON object and nothing else.`
   }
 });
 
-// Simple PDF text extraction that works in Deno
-async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
+// Robust PDF text extraction using pdfjs-dist for Deno
+async function extractTextFromPDFWithPdfjs(buffer: ArrayBuffer): Promise<string> {
+  try {
+    // Import pdfjs-dist for Deno
+    const pdfjs = await import('https://esm.sh/pdfjs-dist@4.4.168');
+    
+    // Configure worker for Deno environment
+    pdfjs.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
+    
+    console.log('Loading PDF document...');
+    const loadingTask = pdfjs.getDocument({ 
+      data: new Uint8Array(buffer),
+      // Disable worker for edge function compatibility
+      disableWorker: true,
+      isEvalSupported: false,
+    });
+    
+    const pdf = await loadingTask.promise;
+    console.log('PDF loaded, pages:', pdf.numPages);
+    
+    let fullText = '';
+    
+    // Extract text from each page
+    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
+      console.log(`Processing page ${pageNum}...`);
+      
+      const page = await pdf.getPage(pageNum);
+      const textContent = await page.getTextContent();
+      
+      // Combine all text items from the page
+      const pageText = textContent.items
+        .map((item: any) => item.str || '')
+        .join(' ')
+        .replace(/\s+/g, ' ')
+        .trim();
+      
+      if (pageText) {
+        fullText += pageText + ' ';
+      }
+    }
+    
+    fullText = fullText.trim();
+    
+    if (fullText.length < 50) {
+      throw new Error('PDF appears to contain no readable text. This may be a scanned document or image-based PDF.');
+    }
+    
+    console.log('Successfully extracted text from PDF, length:', fullText.length);
+    return fullText;
+    
+  } catch (error) {
+    console.error('PDF.js extraction error:', error);
+    
+    // If pdfjs fails, try a simpler fallback approach
+    console.log('Falling back to basic PDF parsing...');
+    return await extractTextFromPDFSimple(buffer);
+  }
+}
+
+// Fallback PDF text extraction
+async function extractTextFromPDFSimple(buffer: ArrayBuffer): Promise<string> {
   const uint8Array = new Uint8Array(buffer);
   let text = '';
   
   try {
-    // Convert to string and look for text patterns
     const decoder = new TextDecoder('latin1', { fatal: false });
     const content = decoder.decode(uint8Array);
     
-    // Extract text from PDF streams and objects
+    // Extract text using improved patterns
     const textPatterns = [
-      // Text in parentheses (common in PDF)
-      /\(([^)]{3,200})\)/g,
-      // Text in brackets
-      /\[([^\]]{3,200})\]/g,
-      // BT...ET text objects
+      // Text in parentheses
+      /\(([^)]{2,100})\)/g,
+      // Text objects with BT/ET markers
       /BT\s*((?:[^E]|E(?!T))*?)\s*ET/gs,
+      // Direct text strings
+      /\/F\d+\s+\d+\s+Tf\s*\(([^)]+)\)/g,
     ];
     
     for (const pattern of textPatterns) {
@@ -196,14 +254,13 @@ async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
       if (matches) {
         for (const match of matches) {
           let cleanText = match
-            .replace(/[()[\]]/g, '') // Remove brackets/parentheses
-            .replace(/BT|ET/g, '') // Remove BT/ET markers
-            .replace(/Tj|TJ/g, '') // Remove text operators
-            .replace(/[^\w\s@.\-+()]/g, ' ') // Clean special chars
-            .replace(/\s+/g, ' ') // Normalize whitespace
+            .replace(/[()]/g, '')
+            .replace(/BT|ET|Tj|TJ/g, '')
+            .replace(/\/F\d+\s+\d+\s+Tf\s*/g, '')
+            .replace(/[^\w\s@.\-+]/g, ' ')
+            .replace(/\s+/g, ' ')
             .trim();
           
-          // Only add if it looks like real text (has letters and reasonable length)
           if (cleanText.length > 2 && /[a-zA-Z]{2,}/.test(cleanText)) {
             text += cleanText + ' ';
           }
@@ -211,13 +268,12 @@ async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
       }
     }
     
-    // Look for email addresses specifically
+    // Extract emails and phone numbers
     const emailMatches = content.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
     if (emailMatches) {
       text += emailMatches.join(' ') + ' ';
     }
     
-    // Look for phone numbers
     const phoneMatches = content.match(/[\+]?[1-9]?[\-\s]?\(?[0-9]{3}\)?[\-\s]?[0-9]{3}[\-\s]?[0-9]{4}/g);
     if (phoneMatches) {
       text += phoneMatches.join(' ') + ' ';
@@ -226,13 +282,13 @@ async function extractTextFromPDF(buffer: ArrayBuffer): Promise<string> {
     text = text.trim();
     
     if (text.length < 50) {
-      throw new Error('Could not extract sufficient readable text from PDF. This might be a scanned document or have text encoding issues.');
+      throw new Error('Could not extract sufficient readable text from PDF using fallback method.');
     }
     
     return text;
     
   } catch (error) {
-    console.error('PDF text extraction error:', error);
-    throw new Error(`PDF parsing failed: ${error.message}`);
+    console.error('Simple PDF extraction error:', error);
+    throw new Error(`PDF parsing completely failed: ${error.message}`);
   }
 }
