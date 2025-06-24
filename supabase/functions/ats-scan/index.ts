@@ -37,6 +37,7 @@ serve(async (req) => {
   try {
     const { resumeText, jobRole } = await req.json();
 
+    // More strict validation for resume content
     if (!resumeText || resumeText.length < 50) {
       await logError('Invalid Resume Text', `Resume text too short: ${resumeText?.length || 0} characters. Content preview: ${resumeText?.substring(0, 200) || 'null'}`);
       return new Response(JSON.stringify({ error: "Please upload a valid resume with readable content!" }), {
@@ -45,35 +46,46 @@ serve(async (req) => {
       });
     }
 
+    // Check if the text looks like garbled/encoded content
+    const readableWordCount = resumeText.split(/\s+/).filter(word => 
+      word.length >= 3 && /^[a-zA-Z0-9@.\-_()]+$/.test(word) && !/^[A-Z]{3,}$/.test(word)
+    ).length;
+    
+    if (readableWordCount < 20) {
+      await logError('Garbled Resume Text', `Resume appears to contain garbled text. Readable words: ${readableWordCount}. Content: ${resumeText.substring(0, 300)}`);
+      return new Response(JSON.stringify({ error: "The uploaded PDF appears to contain garbled or unreadable text. Please try uploading a different PDF or ensure your resume contains selectable text." }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+
     console.log('Analyzing resume with DeepSeek...');
     console.log('Resume text length:', resumeText.length);
+    console.log('Readable words found:', readableWordCount);
     console.log('Resume text preview:', resumeText.substring(0, 300) + '...');
 
     const systemPrompt = `You are an ATS scoring assistant. Analyze the following resume text and provide detailed feedback.
 
-IMPORTANT: The text provided is extracted from a PDF resume. Even if the formatting looks messy, look for actual resume content like:
-- Names, contact information
+The text provided is extracted from a PDF resume. Look for actual resume content such as:
+- Names, contact information  
 - Work experience with companies, roles, dates
 - Education details
 - Skills listings
 - Any professional information
-
-If you can identify ANY legitimate resume content (even with poor formatting), analyze it normally.
-Only respond with the error message if the text contains absolutely NO resume-related information.
 
 Provide scores (1-10 scale) and feedback on:
 1. Header - Contact information, name, professional title
 2. Content - Overall content quality and relevance  
 3. Work Experience - Quality and detail of work experience descriptions
 4. Keywords - Industry-relevant keywords and technical terms
-5. Structure - Organization and readability (be lenient with extracted PDF text)
+5. Structure - Organization and readability
 
 Then provide:
 - What You Did Well (positive aspects)
-- What Needs Improvement (areas for enhancement)
+- What Needs Improvement (areas for enhancement)  
 - Final Score: average of the above 5 categories, rounded to 1 decimal
 
-ONLY respond with: {"error": "Please upload a resume!"} if there is absolutely no resume content.
+IMPORTANT: Only respond with {"error": "Please upload a resume!"} if there is absolutely NO identifiable resume content whatsoever.
 
 Respond ONLY in this JSON format (no markdown formatting):
 {
@@ -135,7 +147,7 @@ Respond ONLY in this JSON format (no markdown formatting):
     try {
       analysisResult = JSON.parse(cleanedResponse);
     } catch (parseError) {
-      await logError('JSON Parse Error', `Failed to parse AI response: ${parseError.message}\nOriginal response: ${aiResponse}\nCleaned response: ${cleanedResponse}\nResume length: ${resumeText.length}\nResume preview: ${resumeText.substring(0, 300)}`);
+      await logError('JSON Parse Error', `Failed to parse AI response: ${parseError.message}\nOriginal response: ${aiResponse}\nCleaned response: ${cleanedResponse}\nResume length: ${resumeText.length}\nReadable words: ${readableWordCount}`);
       throw new Error('Invalid response format from AI');
     }
 
@@ -147,7 +159,7 @@ Respond ONLY in this JSON format (no markdown formatting):
 
     // Check if it's an error response
     if (analysisResult.error) {
-      await logError('AI Analysis Error', `DeepSeek returned error: ${analysisResult.error}\nResume text length: ${resumeText.length}\nResume preview: ${resumeText.substring(0, 300)}\nFull resume text: ${resumeText}`);
+      await logError('AI Analysis Error', `DeepSeek returned error: ${analysisResult.error}\nResume text length: ${resumeText.length}\nReadable words: ${readableWordCount}\nResume preview: ${resumeText.substring(0, 300)}`);
       return new Response(JSON.stringify({ error: analysisResult.error }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

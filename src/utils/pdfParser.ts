@@ -8,27 +8,38 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
         const arrayBuffer = e.target?.result as ArrayBuffer;
         const uint8Array = new Uint8Array(arrayBuffer);
         
-        // Try multiple extraction methods
+        // Try multiple extraction methods in order of sophistication
         let extractedText = '';
         
-        // Method 1: Try to extract with improved PDF parsing
-        extractedText = await parsePDFBuffer(uint8Array);
+        // Method 1: Advanced PDF parsing with better text extraction
+        extractedText = await advancedPDFParse(uint8Array);
         
-        // Method 2: If still not enough readable text, try alternative approach
-        if (extractedText.length < 100 || !hasReadableContent(extractedText)) {
-          extractedText = await alternativePDFParse(uint8Array);
+        // Method 2: If still not enough readable text, try stream-based parsing
+        if (extractedText.length < 100 || !hasValidResumeContent(extractedText)) {
+          console.log('Trying stream-based parsing...');
+          extractedText = await streamBasedPDFParse(uint8Array);
+        }
+        
+        // Method 3: Last resort - keyword-based extraction
+        if (extractedText.length < 100 || !hasValidResumeContent(extractedText)) {
+          console.log('Trying keyword-based extraction...');
+          extractedText = await keywordBasedExtraction(uint8Array);
         }
         
         // Clean and validate the extracted text
         const cleanedText = cleanExtractedText(extractedText);
         
-        if (cleanedText.length < 50 || !hasReadableContent(cleanedText)) {
-          reject(new Error(`Could not extract readable text from PDF. Extracted: "${cleanedText.substring(0, 200)}..."`));
+        console.log(`Final extracted text length: ${cleanedText.length}`);
+        console.log(`Text preview: ${cleanedText.substring(0, 200)}...`);
+        
+        if (cleanedText.length < 50 || !hasValidResumeContent(cleanedText)) {
+          reject(new Error(`Could not extract readable resume content. Please ensure your PDF contains selectable text and try again. Extracted: "${cleanedText.substring(0, 200)}..."`));
           return;
         }
         
         resolve(cleanedText);
       } catch (error) {
+        console.error('PDF parsing error:', error);
         reject(error);
       }
     };
@@ -38,34 +49,175 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
   });
 };
 
-function hasReadableContent(text: string): boolean {
-  // Check if text contains meaningful words (at least 3 characters)
+function hasValidResumeContent(text: string): boolean {
+  // Check for common resume indicators
+  const resumeIndicators = [
+    'experience', 'education', 'skills', 'work', 'employment',
+    'university', 'college', 'degree', 'bachelor', 'master',
+    'phone', 'email', '@', 'linkedin', 'github',
+    'project', 'achievement', 'responsibility', 'company'
+  ];
+  
+  const textLower = text.toLowerCase();
+  const indicatorCount = resumeIndicators.filter(indicator => 
+    textLower.includes(indicator)
+  ).length;
+  
+  // Need at least 3 resume indicators and meaningful word count
   const words = text.split(/\s+/).filter(word => 
     word.length >= 3 && /^[a-zA-Z0-9@.\-_()]+$/.test(word)
   );
   
-  // Should have at least 20 meaningful words
-  return words.length >= 20;
+  return indicatorCount >= 3 && words.length >= 30;
 }
 
-async function parsePDFBuffer(buffer: Uint8Array): Promise<string> {
-  // Convert buffer to string with different encodings
-  const decoders = [
-    new TextDecoder('utf-8'),
-    new TextDecoder('latin1'),
-    new TextDecoder('windows-1252'),
-    new TextDecoder('iso-8859-1')
-  ];
+async function advancedPDFParse(buffer: Uint8Array): Promise<string> {
+  const decoder = new TextDecoder('utf-8', { fatal: false });
+  const pdfContent = decoder.decode(buffer);
   
+  let extractedText = '';
+  
+  // Extract from text objects with improved parsing
+  const textObjectRegex = /BT\s*((?:[^E]|E(?!T))*)\s*ET/gs;
+  const matches = pdfContent.match(textObjectRegex);
+  
+  if (matches) {
+    for (const match of matches) {
+      const content = match.replace(/BT|ET/g, '').trim();
+      
+      // Extract text from various PDF text commands
+      const textCommands = [
+        /\[(.*?)\]\s*TJ/g,  // Array text positioning
+        /\((.*?)\)\s*Tj/g,  // Simple text
+        /\((.*?)\)\s*'/g,   // Quote positioning
+        /\((.*?)\)\s*"/g    // Double quote positioning
+      ];
+      
+      for (const regex of textCommands) {
+        let commandMatch;
+        while ((commandMatch = regex.exec(content)) !== null) {
+          let text = commandMatch[1];
+          
+          // Handle escape sequences
+          text = text
+            .replace(/\\(\d{3})/g, (_, octal) => {
+              const charCode = parseInt(octal, 8);
+              return charCode >= 32 && charCode <= 126 ? String.fromCharCode(charCode) : ' ';
+            })
+            .replace(/\\n/g, '\n')
+            .replace(/\\r/g, '\r')
+            .replace(/\\t/g, '\t')
+            .replace(/\\(.)/g, '$1');
+          
+          if (text.length > 2 && /[a-zA-Z]/.test(text)) {
+            extractedText += text + ' ';
+          }
+        }
+      }
+    }
+  }
+  
+  return extractedText.trim();
+}
+
+async function streamBasedPDFParse(buffer: Uint8Array): Promise<string> {
+  const decoder = new TextDecoder('latin1');
+  const content = decoder.decode(buffer);
+  
+  let extractedText = '';
+  
+  // Look for stream objects and try to extract text
+  const streamRegex = /stream\s*([\s\S]*?)\s*endstream/g;
+  let streamMatch;
+  
+  while ((streamMatch = streamRegex.exec(content)) !== null) {
+    const streamContent = streamMatch[1];
+    
+    // Try to find readable text in streams
+    const readableText = streamContent.match(/[a-zA-Z\s]{4,}/g);
+    if (readableText) {
+      for (const text of readableText) {
+        const cleaned = text.replace(/\s+/g, ' ').trim();
+        if (cleaned.length > 5 && /[a-zA-Z]{3,}/.test(cleaned)) {
+          extractedText += cleaned + ' ';
+        }
+      }
+    }
+  }
+  
+  // Also look for parenthetical text which often contains readable content
+  const parentheticalRegex = /\([^)]{5,100}\)/g;
+  let parentMatch;
+  
+  while ((parentMatch = parentheticalRegex.exec(content)) !== null) {
+    const text = parentMatch[0]
+      .replace(/[()]/g, '')
+      .replace(/[^\w\s@.\-]/g, ' ')
+      .replace(/\s+/g, ' ')
+      .trim();
+    
+    if (text.length > 5 && /[a-zA-Z]/.test(text)) {
+      extractedText += text + ' ';
+    }
+  }
+  
+  return extractedText.trim();
+}
+
+async function keywordBasedExtraction(buffer: Uint8Array): Promise<string> {
+  // Try different encodings
+  const encodings = ['utf-8', 'latin1', 'ascii'];
   let bestText = '';
   let maxScore = 0;
   
-  for (const decoder of decoders) {
+  for (const encoding of encodings) {
     try {
-      const pdfContent = decoder.decode(buffer);
-      const extractedText = extractTextFromPDFContent(pdfContent);
-      const score = scoreExtractedText(extractedText);
+      const decoder = new TextDecoder(encoding, { fatal: false });
+      const content = decoder.decode(buffer);
       
+      let extractedText = '';
+      
+      // Look for email addresses
+      const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
+      const emails = content.match(emailRegex);
+      if (emails) {
+        extractedText += emails.join(' ') + ' ';
+      }
+      
+      // Look for phone numbers
+      const phoneRegex = /[\+]?[1-9]?[\-\s]?\(?[0-9]{3}\)?[\-\s]?[0-9]{3}[\-\s]?[0-9]{4}/g;
+      const phones = content.match(phoneRegex);
+      if (phones) {
+        extractedText += phones.join(' ') + ' ';
+      }
+      
+      // Look for common resume words with context
+      const resumeWords = [
+        'experience', 'education', 'skills', 'work', 'employment',
+        'university', 'college', 'degree', 'bachelor', 'master', 'phd',
+        'manager', 'developer', 'engineer', 'analyst', 'consultant',
+        'project', 'responsible', 'achieved', 'managed', 'developed'
+      ];
+      
+      for (const word of resumeWords) {
+        const contextRegex = new RegExp(`[\\w\\s@.\\-()]{0,50}${word}[\\w\\s@.\\-()]{0,50}`, 'gi');
+        const matches = content.match(contextRegex);
+        
+        if (matches) {
+          for (const match of matches) {
+            const cleaned = match
+              .replace(/[^\w\s@.\-()]/g, ' ')
+              .replace(/\s+/g, ' ')
+              .trim();
+            
+            if (cleaned.length > 10) {
+              extractedText += cleaned + ' ';
+            }
+          }
+        }
+      }
+      
+      const score = scoreExtractedText(extractedText);
       if (score > maxScore) {
         maxScore = score;
         bestText = extractedText;
@@ -75,132 +227,7 @@ async function parsePDFBuffer(buffer: Uint8Array): Promise<string> {
     }
   }
   
-  return bestText;
-}
-
-function extractTextFromPDFContent(pdfContent: string): string {
-  let extractedText = '';
-  
-  // Method 1: Extract text between BT/ET markers with improved parsing
-  const textBlocks = pdfContent.match(/BT\s*(.*?)\s*ET/gs);
-  if (textBlocks) {
-    textBlocks.forEach(block => {
-      const cleanText = block
-        .replace(/BT|ET/g, '')
-        .replace(/\/\w+\s+\d+(\.\d+)?\s+Tf/g, '') // Remove font commands
-        .replace(/\d+(\.\d+)?\s+\d+(\.\d+)?\s+Td/g, '') // Remove positioning
-        .replace(/\d+(\.\d+)?\s+TL/g, '') // Remove leading
-        .replace(/\[(.*?)\]\s*TJ/g, '$1') // Extract from TJ arrays
-        .replace(/\((.*?)\)\s*Tj/g, '$1') // Extract from Tj commands
-        .replace(/\((.*?)\)\s*'/g, '$1') // Extract from quote commands
-        .replace(/\\(\d{3})/g, (match, octal) => {
-          const charCode = parseInt(octal, 8);
-          return charCode >= 32 && charCode <= 126 ? String.fromCharCode(charCode) : ' ';
-        })
-        .replace(/\\./g, ' ') // Replace other escape sequences
-        .replace(/[^\x20-\x7E\n\r\t]/g, ' ') // Keep only printable ASCII
-        .replace(/\s+/g, ' ')
-        .trim();
-      
-      if (cleanText.length > 2) {
-        extractedText += cleanText + ' ';
-      }
-    });
-  }
-  
-  // Method 2: Extract from stream objects
-  const streamMatches = pdfContent.match(/stream\s*(.*?)\s*endstream/gs);
-  if (streamMatches) {
-    streamMatches.forEach(stream => {
-      const streamContent = stream
-        .replace(/stream|endstream/g, '')
-        .replace(/[^\x20-\x7E\n\r\t]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      
-      // Look for text patterns in stream
-      const textPatterns = streamContent.match(/[a-zA-Z]{3,}[\w\s@.\-()]{10,}/g);
-      if (textPatterns) {
-        textPatterns.forEach(pattern => {
-          if (pattern.length > 10) {
-            extractedText += pattern + ' ';
-          }
-        });
-      }
-    });
-  }
-  
-  // Method 3: Look for parenthetical text (common in PDFs)
-  const parentheticalText = pdfContent.match(/\([^)]{3,100}\)/g);
-  if (parentheticalText) {
-    parentheticalText.forEach(text => {
-      const cleaned = text
-        .replace(/[()]/g, '')
-        .replace(/[^\w\s@.\-]/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      
-      if (cleaned.length > 3 && /[a-zA-Z]/.test(cleaned)) {
-        extractedText += cleaned + ' ';
-      }
-    });
-  }
-  
-  return extractedText.trim();
-}
-
-async function alternativePDFParse(buffer: Uint8Array): Promise<string> {
-  // Alternative method: look for common resume keywords and extract surrounding text
-  const decoder = new TextDecoder('latin1');
-  const content = decoder.decode(buffer);
-  
-  const resumeKeywords = [
-    'experience', 'education', 'skills', 'work', 'job', 'company',
-    'university', 'college', 'degree', 'bachelor', 'master',
-    'email', 'phone', 'address', 'linkedin', 'github',
-    'project', 'achievement', 'responsibility', '@'
-  ];
-  
-  let extractedText = '';
-  
-  // Find text around resume keywords
-  resumeKeywords.forEach(keyword => {
-    const regex = new RegExp(`[\\w\\s@.\\-()]{0,50}${keyword}[\\w\\s@.\\-()]{0,50}`, 'gi');
-    const matches = content.match(regex);
-    
-    if (matches) {
-      matches.forEach(match => {
-        const cleaned = match
-          .replace(/[^\w\s@.\-()]/g, ' ')
-          .replace(/\s+/g, ' ')
-          .trim();
-        
-        if (cleaned.length > 10) {
-          extractedText += cleaned + ' ';
-        }
-      });
-    }
-  });
-  
-  // Also try to extract email patterns
-  const emailPattern = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-  const emails = content.match(emailPattern);
-  if (emails) {
-    emails.forEach(email => {
-      extractedText += email + ' ';
-    });
-  }
-  
-  // Extract phone patterns
-  const phonePattern = /[\+]?[1-9]?[\-\s]?\(?[0-9]{3}\)?[\-\s]?[0-9]{3}[\-\s]?[0-9]{4}/g;
-  const phones = content.match(phonePattern);
-  if (phones) {
-    phones.forEach(phone => {
-      extractedText += phone + ' ';
-    });
-  }
-  
-  return extractedText.trim();
+  return bestText.trim();
 }
 
 function scoreExtractedText(text: string): number {
