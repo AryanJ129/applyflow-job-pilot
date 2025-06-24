@@ -7,11 +7,6 @@ import { toast } from '@/hooks/use-toast';
 import FileUploadCard from '@/components/ats/FileUploadCard';
 import ResultsSection from '@/components/ats/ResultsSection';
 import BackButton from '@/components/auth/BackButton';
-import * as mammoth from 'mammoth';
-import * as pdfjsLib from 'pdfjs-dist';
-
-// Set up the worker
-pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const AtsChecker = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -30,110 +25,6 @@ const AtsChecker = () => {
     };
     checkAuth();
   }, [navigate]);
-
-  const logError = async (name: string, error: string) => {
-    try {
-      await supabase
-        .from('error_logs')
-        .insert({
-          name,
-          error: error.substring(0, 1000)
-        });
-    } catch (logErr) {
-      console.error('Failed to log error to database:', logErr);
-    }
-  };
-
-  const saveDebugData = async (name: string, parsedData: string, sentData: string, receivedData: any) => {
-    try {
-      await supabase
-        .from('ats_test')
-        .insert({
-          name,
-          parsed_data: parsedData,
-          sent_data: sentData,
-          received_data: receivedData
-        });
-      console.log('Debug data saved successfully');
-    } catch (err) {
-      console.error('Failed to save debug data:', err);
-    }
-  };
-
-  const extractTextFromPDF = async (file: File): Promise<string> => {
-    try {
-      console.log('Processing PDF file with pdfjs-dist...');
-      const arrayBuffer = await file.arrayBuffer();
-      
-      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
-      let extractedText = '';
-      
-      // Extract text from all pages
-      for (let i = 1; i <= pdf.numPages; i++) {
-        const page = await pdf.getPage(i);
-        const textContent = await page.getTextContent();
-        
-        // Combine all text items from the page
-        const pageText = textContent.items
-          .map((item: any) => item.str)
-          .join(' ');
-        
-        extractedText += pageText + ' ';
-      }
-      
-      // Clean the extracted text
-      const cleanedText = extractedText
-        .replace(/\s{2,}/g, ' ') // Remove multiple spaces
-        .replace(/[^\x20-\x7E]/g, '') // Remove weird binary characters
-        .trim();
-      
-      console.log(`Extracted ${cleanedText.length} characters from PDF`);
-      console.log('PDF text preview:', cleanedText.substring(0, 300));
-      
-      if (!cleanedText || cleanedText.trim().length < 50) {
-        throw new Error(`Could not extract sufficient text from PDF. Extracted length: ${cleanedText?.length || 0}`);
-      }
-      
-      return cleanedText;
-    } catch (error) {
-      console.error('PDF extraction error:', error);
-      throw new Error(`We couldn't read this PDF. Try uploading another one.`);
-    }
-  };
-
-  const extractTextFromDocx = async (file: File): Promise<string> => {
-    try {
-      console.log('Processing DOCX file...');
-      const arrayBuffer = await file.arrayBuffer();
-      
-      const result = await mammoth.extractRawText({ arrayBuffer });
-      const extractedText = result.value;
-      
-      console.log(`Extracted ${extractedText.length} characters from DOCX`);
-      console.log('DOCX text preview:', extractedText.substring(0, 300));
-      
-      if (!extractedText || extractedText.trim().length < 50) {
-        throw new Error(`Could not extract sufficient text from DOCX. Extracted length: ${extractedText?.length || 0}`);
-      }
-      
-      return extractedText.trim();
-    } catch (error) {
-      console.error('DOCX extraction error:', error);
-      throw new Error(`Failed to extract text from DOCX: ${error.message}`);
-    }
-  };
-
-  const extractTextFromFile = async (file: File): Promise<string> => {
-    const fileExtension = file.name.toLowerCase().split('.').pop();
-    
-    if (fileExtension === 'pdf') {
-      return await extractTextFromPDF(file);
-    } else if (fileExtension === 'docx') {
-      return await extractTextFromDocx(file);
-    } else {
-      throw new Error('Unsupported file format. Please upload a PDF or DOCX file.');
-    }
-  };
 
   const handleFileUpload = (file: File) => {
     // Validate file type
@@ -157,83 +48,55 @@ const AtsChecker = () => {
     if (!uploadedFile) return;
     
     setIsScanning(true);
+    setResults(null);
     
     try {
-      console.log('Starting ATS analysis...');
+      console.log('Starting ATS scan for:', uploadedFile.name);
       
-      // Extract text based on file type
-      const extractedText = await extractTextFromFile(uploadedFile);
-      
-      console.log(`Successfully extracted ${extractedText.length} characters from file`);
-      console.log('First 500 characters:', extractedText.substring(0, 500));
-      
-      if (!extractedText || extractedText.length < 50) {
-        const errorMsg = `Could not extract sufficient text from file. Extracted length: ${extractedText?.length || 0}`;
-        await logError('File Text Extraction Error', errorMsg);
-        
-        toast({
-          title: "File Processing Failed",
-          description: "We couldn't extract enough readable text from this file. Please try a different format or ensure your document contains selectable text.",
-          variant: "destructive",
-        });
-        setIsScanning(false);
-        return;
-      }
+      const formData = new FormData();
+      formData.append('resume', uploadedFile);
 
-      // Prepare data for DeepSeek
-      const resumeText = extractedText.trim();
-      console.log('Sending to DeepSeek for analysis...');
-      
-      // Call the ATS analysis function
       const { data, error } = await supabase.functions.invoke('ats-scan', {
-        body: { resumeText },
+        body: formData,
       });
 
-      // Save debug data
-      await saveDebugData(
-        uploadedFile.name,
-        extractedText,
-        resumeText,
-        data || { error: error?.message }
-      );
-
       if (error) {
-        await logError('Supabase Function Error', `${error.message || 'Unknown error'}\nDetails: ${JSON.stringify(error)}`);
-        throw error;
+        console.error('Supabase function error:', error);
+        throw new Error(error.message || 'Failed to process file');
       }
 
       if (data.error) {
-        await logError('Analysis Response Error', data.error);
-        toast({
-          title: "ATS Scan Failed",
-          description: data.error,
-          variant: "destructive",
-        });
-        setIsScanning(false);
-        return;
+        throw new Error(data.error);
       }
 
-      // Validate response data
-      if (!data || typeof data !== 'object') {
-        await logError('Invalid Response Data', `Response is not an object: ${JSON.stringify(data)}`);
-        throw new Error('Invalid response data structure');
+      console.log('Raw result from API:', data.result);
+
+      // Parse the JSON response from DeepSeek
+      let parsed;
+      try {
+        parsed = JSON.parse(data.result);
+      } catch (parseError) {
+        console.error('Failed to parse result:', data.result);
+        throw new Error('Invalid response format from analysis service');
       }
 
-      console.log('Analysis successful:', data);
+      console.log('Parsed ATS results:', parsed);
 
-      // Transform the data to match the ResultsSection component
+      // Transform the data to match the ResultsSection component format
       const transformedResults = {
         scores: {
-          header: data.header || 0,
-          body: data.body || 0,
-          formatting: data.formatting || 0,
-          contact: data.contact || 0,
-          structure: data.structure || 0
+          header: parsed.Header || parsed.header || 0,
+          body: parsed["Body Content"] || parsed.body || 0,
+          formatting: parsed.Formatting || parsed.formatting || 0,
+          contact: parsed["Contact Info"] || parsed.contact || 0,
+          structure: parsed.Structure || parsed.structure || 0
         },
-        whatWentWell: Array.isArray(data.good) ? data.good : [],
-        improvements: Array.isArray(data.bad) ? data.bad : [],
-        finalScore: data.final || 0
+        whatWentWell: parsed["What You Did Well"] || parsed.good || [],
+        improvements: parsed["What Needs Improvement"] || parsed.bad || [],
+        finalScore: parsed["Final Score"] || parsed.final || 0
       };
+
+      console.log('Transformed results:', transformedResults);
 
       setResults(transformedResults);
       setShowResults(true);
@@ -244,14 +107,11 @@ const AtsChecker = () => {
       });
       
     } catch (error) {
-      console.error('Analysis error:', error);
-      
-      const errorMessage = error.message || 'Unknown error occurred';
-      await logError('ATS Scan Error', `${errorMessage}\nStack: ${error.stack || 'No stack trace'}`);
+      console.error('ATS scan error:', error);
       
       toast({
-        title: "File Processing Failed",
-        description: errorMessage,
+        title: "ATS Scan Failed",
+        description: error.message || 'Something went wrong during the scan',
         variant: "destructive",
       });
     } finally {
