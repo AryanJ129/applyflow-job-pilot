@@ -4,6 +4,7 @@ import { Button } from '@/components/ui/button';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from '@/hooks/use-toast';
+import { RotateCcw } from 'lucide-react';
 import FileUploadCard from '@/components/ats/FileUploadCard';
 import ResultsSection from '@/components/ats/ResultsSection';
 import BackButton from '@/components/auth/BackButton';
@@ -42,6 +43,17 @@ const AtsChecker = () => {
     
     setUploadedFile(file);
     setShowResults(false);
+  };
+
+  const handleReset = () => {
+    setUploadedFile(null);
+    setShowResults(false);
+    setResults(null);
+    setIsScanning(false);
+    toast({
+      title: "Reset Complete",
+      description: "Ready for a new file upload.",
+    });
   };
 
   const handleScan = async () => {
@@ -143,8 +155,8 @@ const AtsChecker = () => {
           />
         </div>
 
-        {/* Scan Button */}
-        <div className="text-center mb-12">
+        {/* Action Buttons */}
+        <div className="flex justify-center gap-4 mb-12">
           <Button
             onClick={handleScan}
             disabled={!uploadedFile || isScanning}
@@ -159,6 +171,18 @@ const AtsChecker = () => {
               'Run ATS Scan'
             )}
           </Button>
+
+          {(uploadedFile || showResults) && (
+            <Button
+              onClick={handleReset}
+              disabled={isScanning}
+              variant="outline"
+              className="rounded-full px-6 py-3 h-12 text-lg font-semibold transition-all duration-200 hover:scale-105"
+            >
+              <RotateCcw className="h-5 w-5 mr-2" />
+              Reset
+            </Button>
+          )}
         </div>
 
         {/* Results Section */}
