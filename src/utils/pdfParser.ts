@@ -1,4 +1,3 @@
-
 export const extractTextFromPDF = async (file: File): Promise<string> => {
   return new Promise((resolve, reject) => {
     const reader = new FileReader();
@@ -8,32 +7,31 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
         const arrayBuffer = e.target?.result as ArrayBuffer;
         const uint8Array = new Uint8Array(arrayBuffer);
         
-        // Try multiple extraction methods in order of sophistication
         let extractedText = '';
         
-        // Method 1: Advanced PDF parsing with better text extraction
-        extractedText = await advancedPDFParse(uint8Array);
+        // Method 1: Try different PDF text extraction approaches
+        extractedText = await comprehensivePDFParse(uint8Array);
         
-        // Method 2: If still not enough readable text, try stream-based parsing
-        if (extractedText.length < 100 || !hasValidResumeContent(extractedText)) {
-          console.log('Trying stream-based parsing...');
-          extractedText = await streamBasedPDFParse(uint8Array);
+        // Method 2: If not enough text, try OCR-like approach
+        if (extractedText.length < 100) {
+          console.log('Trying character pattern extraction...');
+          extractedText = await characterPatternExtraction(uint8Array);
         }
         
-        // Method 3: Last resort - keyword-based extraction
-        if (extractedText.length < 100 || !hasValidResumeContent(extractedText)) {
-          console.log('Trying keyword-based extraction...');
-          extractedText = await keywordBasedExtraction(uint8Array);
+        // Method 3: Try simple string extraction
+        if (extractedText.length < 100) {
+          console.log('Trying simple string extraction...');
+          extractedText = await simpleStringExtraction(uint8Array);
         }
         
         // Clean and validate the extracted text
-        const cleanedText = cleanExtractedText(extractedText);
+        const cleanedText = cleanAndValidateText(extractedText);
         
         console.log(`Final extracted text length: ${cleanedText.length}`);
-        console.log(`Text preview: ${cleanedText.substring(0, 200)}...`);
+        console.log(`Text preview: ${cleanedText.substring(0, 300)}...`);
         
-        if (cleanedText.length < 50 || !hasValidResumeContent(cleanedText)) {
-          reject(new Error(`Could not extract readable resume content. Please ensure your PDF contains selectable text and try again. Extracted: "${cleanedText.substring(0, 200)}..."`));
+        if (cleanedText.length < 50) {
+          reject(new Error(`Could not extract sufficient readable text from PDF. This might be a scanned document or have encoding issues. Please try converting your PDF to text format first. Extracted: "${cleanedText.substring(0, 100)}..."`));
           return;
         }
         
@@ -49,167 +47,108 @@ export const extractTextFromPDF = async (file: File): Promise<string> => {
   });
 };
 
-function hasValidResumeContent(text: string): boolean {
-  // Check for common resume indicators
-  const resumeIndicators = [
-    'experience', 'education', 'skills', 'work', 'employment',
-    'university', 'college', 'degree', 'bachelor', 'master',
-    'phone', 'email', '@', 'linkedin', 'github',
-    'project', 'achievement', 'responsibility', 'company'
-  ];
-  
-  const textLower = text.toLowerCase();
-  const indicatorCount = resumeIndicators.filter(indicator => 
-    textLower.includes(indicator)
-  ).length;
-  
-  // Need at least 3 resume indicators and meaningful word count
-  const words = text.split(/\s+/).filter(word => 
-    word.length >= 3 && /^[a-zA-Z0-9@.\-_()]+$/.test(word)
-  );
-  
-  return indicatorCount >= 3 && words.length >= 30;
-}
-
-async function advancedPDFParse(buffer: Uint8Array): Promise<string> {
-  const decoder = new TextDecoder('utf-8', { fatal: false });
-  const pdfContent = decoder.decode(buffer);
-  
+async function comprehensivePDFParse(buffer: Uint8Array): Promise<string> {
   let extractedText = '';
   
-  // Extract from text objects with improved parsing
-  const textObjectRegex = /BT\s*((?:[^E]|E(?!T))*)\s*ET/gs;
-  const matches = pdfContent.match(textObjectRegex);
-  
-  if (matches) {
-    for (const match of matches) {
-      const content = match.replace(/BT|ET/g, '').trim();
-      
-      // Extract text from various PDF text commands
-      const textCommands = [
-        /\[(.*?)\]\s*TJ/g,  // Array text positioning
-        /\((.*?)\)\s*Tj/g,  // Simple text
-        /\((.*?)\)\s*'/g,   // Quote positioning
-        /\((.*?)\)\s*"/g    // Double quote positioning
-      ];
-      
-      for (const regex of textCommands) {
-        let commandMatch;
-        while ((commandMatch = regex.exec(content)) !== null) {
-          let text = commandMatch[1];
-          
-          // Handle escape sequences
-          text = text
-            .replace(/\\(\d{3})/g, (_, octal) => {
-              const charCode = parseInt(octal, 8);
-              return charCode >= 32 && charCode <= 126 ? String.fromCharCode(charCode) : ' ';
-            })
-            .replace(/\\n/g, '\n')
-            .replace(/\\r/g, '\r')
-            .replace(/\\t/g, '\t')
-            .replace(/\\(.)/g, '$1');
-          
-          if (text.length > 2 && /[a-zA-Z]/.test(text)) {
-            extractedText += text + ' ';
-          }
-        }
-      }
-    }
-  }
-  
-  return extractedText.trim();
-}
-
-async function streamBasedPDFParse(buffer: Uint8Array): Promise<string> {
-  const decoder = new TextDecoder('latin1');
-  const content = decoder.decode(buffer);
-  
-  let extractedText = '';
-  
-  // Look for stream objects and try to extract text
-  const streamRegex = /stream\s*([\s\S]*?)\s*endstream/g;
-  let streamMatch;
-  
-  while ((streamMatch = streamRegex.exec(content)) !== null) {
-    const streamContent = streamMatch[1];
-    
-    // Try to find readable text in streams
-    const readableText = streamContent.match(/[a-zA-Z\s]{4,}/g);
-    if (readableText) {
-      for (const text of readableText) {
-        const cleaned = text.replace(/\s+/g, ' ').trim();
-        if (cleaned.length > 5 && /[a-zA-Z]{3,}/.test(cleaned)) {
-          extractedText += cleaned + ' ';
-        }
-      }
-    }
-  }
-  
-  // Also look for parenthetical text which often contains readable content
-  const parentheticalRegex = /\([^)]{5,100}\)/g;
-  let parentMatch;
-  
-  while ((parentMatch = parentheticalRegex.exec(content)) !== null) {
-    const text = parentMatch[0]
-      .replace(/[()]/g, '')
-      .replace(/[^\w\s@.\-]/g, ' ')
-      .replace(/\s+/g, ' ')
-      .trim();
-    
-    if (text.length > 5 && /[a-zA-Z]/.test(text)) {
-      extractedText += text + ' ';
-    }
-  }
-  
-  return extractedText.trim();
-}
-
-async function keywordBasedExtraction(buffer: Uint8Array): Promise<string> {
-  // Try different encodings
-  const encodings = ['utf-8', 'latin1', 'ascii'];
-  let bestText = '';
-  let maxScore = 0;
+  // Try multiple encodings
+  const encodings = ['utf-8', 'latin1', 'windows-1252'];
   
   for (const encoding of encodings) {
     try {
       const decoder = new TextDecoder(encoding, { fatal: false });
       const content = decoder.decode(buffer);
       
-      let extractedText = '';
+      // Look for text objects and streams
+      const textPatterns = [
+        // Standard text objects
+        /BT\s*((?:[^E]|E(?!T))*?)\s*ET/gs,
+        // Text in parentheses
+        /\(([^)]{10,200})\)/g,
+        // Text in brackets
+        /\[([^\]]{10,200})\]/g,
+        // Stream content
+        /stream\s*([\s\S]*?)\s*endstream/g
+      ];
       
-      // Look for email addresses
-      const emailRegex = /[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g;
-      const emails = content.match(emailRegex);
+      for (const pattern of textPatterns) {
+        const matches = content.match(pattern);
+        if (matches) {
+          for (const match of matches) {
+            let text = match;
+            
+            // Clean text objects
+            if (text.includes('BT') && text.includes('ET')) {
+              text = text.replace(/BT|ET/g, '');
+              
+              // Extract from Tj and TJ commands
+              const textCommands = text.match(/\(([^)]+)\)\s*Tj|\[([^\]]+)\]\s*TJ/g);
+              if (textCommands) {
+                for (const cmd of textCommands) {
+                  const cleanCmd = cmd.replace(/\(|\)|\[|\]|Tj|TJ/g, '').trim();
+                  if (cleanCmd.length > 2 && /[a-zA-Z]/.test(cleanCmd)) {
+                    extractedText += cleanCmd + ' ';
+                  }
+                }
+              }
+            } else {
+              // Clean parentheses and brackets content
+              text = text.replace(/[()[\]]/g, '');
+              if (text.length > 5 && /[a-zA-Z]{3,}/.test(text)) {
+                extractedText += text + ' ';
+              }
+            }
+          }
+        }
+      }
+      
+      if (extractedText.length > 100) break; // Found good content
+    } catch (e) {
+      continue;
+    }
+  }
+  
+  return extractedText.trim();
+}
+
+async function characterPatternExtraction(buffer: Uint8Array): Promise<string> {
+  let extractedText = '';
+  
+  // Convert to different character encodings and look for readable patterns
+  const encodings = ['utf-8', 'latin1', 'windows-1252', 'ascii'];
+  
+  for (const encoding of encodings) {
+    try {
+      const decoder = new TextDecoder(encoding, { fatal: false });
+      const content = decoder.decode(buffer);
+      
+      // Look for sequences of readable characters
+      const readableChunks = content.match(/[A-Za-z][A-Za-z0-9\s@.\-()]{5,100}/g);
+      
+      if (readableChunks) {
+        for (const chunk of readableChunks) {
+          const cleaned = chunk.replace(/[^\w\s@.\-()]/g, ' ').replace(/\s+/g, ' ').trim();
+          if (cleaned.length > 5 && /[a-zA-Z]{3,}/.test(cleaned)) {
+            extractedText += cleaned + ' ';
+          }
+        }
+      }
+      
+      // Look for email patterns
+      const emails = content.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
       if (emails) {
         extractedText += emails.join(' ') + ' ';
       }
       
-      // Look for phone numbers
-      const phoneRegex = /[\+]?[1-9]?[\-\s]?\(?[0-9]{3}\)?[\-\s]?[0-9]{3}[\-\s]?[0-9]{4}/g;
-      const phones = content.match(phoneRegex);
-      if (phones) {
-        extractedText += phones.join(' ') + ' ';
-      }
+      // Look for common resume keywords with surrounding context
+      const keywords = ['experience', 'education', 'skills', 'work', 'university', 'college', 'company', 'project', 'manager', 'developer', 'engineer'];
       
-      // Look for common resume words with context
-      const resumeWords = [
-        'experience', 'education', 'skills', 'work', 'employment',
-        'university', 'college', 'degree', 'bachelor', 'master', 'phd',
-        'manager', 'developer', 'engineer', 'analyst', 'consultant',
-        'project', 'responsible', 'achieved', 'managed', 'developed'
-      ];
-      
-      for (const word of resumeWords) {
-        const contextRegex = new RegExp(`[\\w\\s@.\\-()]{0,50}${word}[\\w\\s@.\\-()]{0,50}`, 'gi');
-        const matches = content.match(contextRegex);
+      for (const keyword of keywords) {
+        const regex = new RegExp(`[\\w\\s@.\\-()]{0,30}${keyword}[\\w\\s@.\\-()]{0,30}`, 'gi');
+        const matches = content.match(regex);
         
         if (matches) {
           for (const match of matches) {
-            const cleaned = match
-              .replace(/[^\w\s@.\-()]/g, ' ')
-              .replace(/\s+/g, ' ')
-              .trim();
-            
+            const cleaned = match.replace(/[^\w\s@.\-()]/g, ' ').replace(/\s+/g, ' ').trim();
             if (cleaned.length > 10) {
               extractedText += cleaned + ' ';
             }
@@ -217,56 +156,96 @@ async function keywordBasedExtraction(buffer: Uint8Array): Promise<string> {
         }
       }
       
-      const score = scoreExtractedText(extractedText);
-      if (score > maxScore) {
-        maxScore = score;
-        bestText = extractedText;
-      }
-    } catch (error) {
+      if (extractedText.length > 100) break;
+    } catch (e) {
       continue;
     }
   }
   
-  return bestText.trim();
+  return extractedText.trim();
 }
 
-function scoreExtractedText(text: string): number {
-  let score = 0;
+async function simpleStringExtraction(buffer: Uint8Array): Promise<string> {
+  let extractedText = '';
   
-  // Score based on length
-  score += Math.min(text.length / 100, 10);
-  
-  // Score based on readable words
-  const words = text.split(/\s+/).filter(word => 
-    word.length >= 3 && /^[a-zA-Z0-9@.\-_()]+$/.test(word)
-  );
-  score += words.length;
-  
-  // Bonus for resume-related keywords
-  const resumeKeywords = [
-    'experience', 'education', 'skills', 'work', 'job',
-    'university', 'college', 'degree', 'email', 'phone'
-  ];
-  
-  resumeKeywords.forEach(keyword => {
-    if (text.toLowerCase().includes(keyword)) {
-      score += 5;
+  try {
+    // Convert to string and look for any readable text
+    const decoder = new TextDecoder('latin1', { fatal: false });
+    const content = decoder.decode(buffer);
+    
+    // Remove non-printable characters but keep spaces and common punctuation
+    const cleanContent = content.replace(/[\x00-\x1F\x7F-\x9F]/g, ' ');
+    
+    // Extract words that look like real text
+    const words = cleanContent.match(/[a-zA-Z]{3,}[a-zA-Z0-9\s@.\-()]*[a-zA-Z0-9]/g);
+    
+    if (words) {
+      // Filter and clean words
+      const validWords = words.filter(word => {
+        const cleaned = word.trim();
+        return cleaned.length >= 3 && 
+               /[a-zA-Z]/.test(cleaned) && 
+               !cleaned.match(/^[A-Z]{5,}$/) && // Not all caps gibberish
+               cleaned.split(/\s+/).length <= 20; // Not too long
+      });
+      
+      extractedText = validWords.join(' ');
     }
-  });
-  
-  // Bonus for email
-  if (/@/.test(text)) {
-    score += 10;
+    
+    // Try to find structured data like phone numbers, emails with context
+    const phoneContext = content.match(/[a-zA-Z\s]{0,20}[\+]?[1-9]?[\-\s]?\(?[0-9]{3}\)?[\-\s]?[0-9]{3}[\-\s]?[0-9]{4}[a-zA-Z\s]{0,20}/g);
+    const emailContext = content.match(/[a-zA-Z\s]{0,30}[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}[a-zA-Z\s]{0,30}/g);
+    
+    if (phoneContext) {
+      extractedText += ' ' + phoneContext.join(' ');
+    }
+    
+    if (emailContext) {
+      extractedText += ' ' + emailContext.join(' ');
+    }
+  } catch (e) {
+    console.error('Simple extraction failed:', e);
   }
   
-  return score;
+  return extractedText.trim();
 }
 
-function cleanExtractedText(text: string): string {
-  return text
-    .replace(/\s+/g, ' ') // Normalize whitespace
-    .replace(/[^\w\s@.\-()]/g, ' ') // Keep only safe characters
-    .replace(/\b\w{1,2}\b/g, ' ') // Remove very short words (likely artifacts)
-    .replace(/\s+/g, ' ') // Normalize whitespace again
+function cleanAndValidateText(text: string): string {
+  if (!text) return '';
+  
+  // Remove excessive whitespace and clean up
+  let cleaned = text
+    .replace(/\s+/g, ' ')
+    .replace(/[^\w\s@.\-()]/g, ' ')
+    .replace(/\s+/g, ' ')
     .trim();
+  
+  // Remove very short isolated words that are likely artifacts
+  const words = cleaned.split(' ').filter(word => {
+    if (word.length <= 2) return false;
+    if (word.match(/^[0-9]+$/)) return word.length >= 4; // Keep longer numbers
+    return true;
+  });
+  
+  cleaned = words.join(' ');
+  
+  // Basic resume content validation
+  const resumeIndicators = [
+    'experience', 'education', 'skills', 'work', 'job',
+    'university', 'college', 'school', 'degree', 'bachelor', 'master',
+    'company', 'project', 'manager', 'developer', 'engineer', 'analyst',
+    'email', 'phone', '@', 'linkedin', 'github'
+  ];
+  
+  const lowerText = cleaned.toLowerCase();
+  const indicatorCount = resumeIndicators.filter(indicator => 
+    lowerText.includes(indicator)
+  ).length;
+  
+  // If we have very few resume indicators, this might not be a good extraction
+  if (indicatorCount < 2 && cleaned.length < 200) {
+    console.log(`Warning: Only ${indicatorCount} resume indicators found in text`);
+  }
+  
+  return cleaned;
 }
