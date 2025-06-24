@@ -9,6 +9,33 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      ats_test: {
+        Row: {
+          created_at: string
+          id: string
+          name: string
+          parsed_data: string | null
+          received_data: Json | null
+          sent_data: string | null
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          name: string
+          parsed_data?: string | null
+          received_data?: Json | null
+          sent_data?: string | null
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          name?: string
+          parsed_data?: string | null
+          received_data?: Json | null
+          sent_data?: string | null
+        }
+        Relationships: []
+      }
       error_logs: {
         Row: {
           error: string

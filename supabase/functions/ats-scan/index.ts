@@ -37,55 +37,67 @@ serve(async (req) => {
   try {
     const { resumeText } = await req.json();
 
-    // Validate resume content
+    console.log('Received resume text length:', resumeText?.length || 0);
+    console.log('Resume text preview:', resumeText?.substring(0, 300) || 'null');
+
+    // Enhanced validation
     if (!resumeText || resumeText.length < 50) {
       await logError('Invalid Resume Text', `Resume text too short: ${resumeText?.length || 0} characters. Content preview: ${resumeText?.substring(0, 200) || 'null'}`);
-      return new Response(JSON.stringify({ error: "We couldn't scan this file. Try uploading a text-based PDF or .docx" }), {
+      return new Response(JSON.stringify({ error: "We couldn't analyze this content. The extracted text is too short or empty. Please try a different file format." }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    // Check if the text looks like garbled/encoded content
-    const readableWordCount = resumeText.split(/\s+/).filter(word => 
-      word.length >= 3 && /^[a-zA-Z0-9@.\-_()]+$/.test(word) && !/^[A-Z]{3,}$/.test(word)
-    ).length;
+    // Better text quality check
+    const words = resumeText.split(/\s+/);
+    const readableWords = words.filter(word => 
+      word.length >= 3 && 
+      /^[a-zA-Z0-9@.\-_()]+$/.test(word) && 
+      !/^[A-Z]{4,}$/.test(word) // Filter out long all-caps gibberish
+    );
     
-    if (readableWordCount < 20) {
-      await logError('Garbled Resume Text', `Resume appears to contain garbled text. Readable words: ${readableWordCount}. Content: ${resumeText.substring(0, 300)}`);
-      return new Response(JSON.stringify({ error: "We couldn't scan this file. Try uploading a text-based PDF or .docx" }), {
+    const readableWordRatio = readableWords.length / words.length;
+    
+    console.log(`Total words: ${words.length}, Readable words: ${readableWords.length}, Ratio: ${readableWordRatio.toFixed(2)}`);
+    
+    if (readableWords.length < 30 || readableWordRatio < 0.6) {
+      await logError('Poor Text Quality', `Low quality text detected. Total words: ${words.length}, Readable: ${readableWords.length}, Ratio: ${readableWordRatio.toFixed(2)}. Content: ${resumeText.substring(0, 500)}`);
+      return new Response(JSON.stringify({ error: "The extracted text appears to be corrupted or unreadable. Please try uploading a text-based PDF or Word document." }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log('Analyzing resume with DeepSeek...');
-    console.log('Resume text length:', resumeText.length);
-    console.log('Readable words found:', readableWordCount);
+    console.log('Text quality check passed. Analyzing with DeepSeek...');
 
-    const systemPrompt = `You are an ATS resume evaluator. Given a resume's raw text, respond in this exact JSON format:
+    const systemPrompt = `You are an expert ATS (Applicant Tracking System) resume evaluator. Analyze the resume text and provide detailed feedback.
+
+Respond in this EXACT JSON format:
 
 {
-  "header": 1-10,
-  "body": 1-10,
-  "formatting": 1-10,
-  "contact": 1-10,
-  "structure": 1-10,
-  "good": ["What the user did well"],
-  "bad": ["What needs improvement"],
-  "final": final score out of 10
+  "header": score_1_to_10,
+  "body": score_1_to_10,
+  "formatting": score_1_to_10,
+  "contact": score_1_to_10,
+  "structure": score_1_to_10,
+  "good": ["specific positive points"],
+  "bad": ["specific improvement suggestions"],
+  "final": overall_score_1_to_10
 }
 
-Evaluate these specific aspects:
-- Header: Contact information, name, professional title clarity
-- Body: Content quality, relevant experience, achievements
-- Formatting: Structure, readability, ATS compatibility
-- Contact: Complete contact details, professional email
-- Structure: Logical flow, proper sections, clear organization
+Scoring criteria:
+- Header (1-10): Name visibility, professional title, contact info placement
+- Body (1-10): Content quality, relevant experience, achievements with metrics
+- Formatting (1-10): Consistency, readability, ATS-friendly structure
+- Contact (1-10): Complete contact details, professional email, LinkedIn
+- Structure (1-10): Logical flow, proper sections, clear organization
 
-Provide specific, actionable feedback in the "good" and "bad" arrays.`;
+Provide 3-5 specific points in "good" and "bad" arrays. Be constructive and actionable.`;
 
-    const userPrompt = `Analyze this resume:\n\n${resumeText}`;
+    const userPrompt = `Analyze this resume text for ATS compatibility:\n\n${resumeText}`;
+
+    console.log('Sending request to DeepSeek API...');
 
     const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
@@ -100,7 +112,7 @@ Provide specific, actionable feedback in the "good" and "bad" arrays.`;
           { role: 'user', content: userPrompt }
         ],
         temperature: 0.1,
-        max_tokens: 1000,
+        max_tokens: 1500,
       }),
     });
 
@@ -111,6 +123,7 @@ Provide specific, actionable feedback in the "good" and "bad" arrays.`;
     }
 
     const data = await response.json();
+    console.log('DeepSeek API response received');
     
     if (!data.choices || !data.choices[0] || !data.choices[0].message) {
       await logError('Invalid DeepSeek Response', `Unexpected response structure: ${JSON.stringify(data)}`);
@@ -134,23 +147,39 @@ Provide specific, actionable feedback in the "good" and "bad" arrays.`;
       analysisResult = JSON.parse(cleanedResponse);
     } catch (parseError) {
       await logError('JSON Parse Error', `Failed to parse AI response: ${parseError.message}\nOriginal response: ${aiResponse}\nCleaned response: ${cleanedResponse}`);
-      throw new Error('ATS scan failed. Please try again later.');
+      throw new Error('Failed to parse AI analysis. Please try again.');
     }
 
     // Validate the response structure
     if (typeof analysisResult !== 'object' || analysisResult === null) {
       await logError('Invalid Response Structure', `Response is not an object: ${JSON.stringify(analysisResult)}`);
-      throw new Error('ATS scan failed. Please try again later.');
+      throw new Error('Invalid analysis result structure.');
     }
 
-    // Validate required fields
+    // Validate and sanitize required fields
     const requiredFields = ['header', 'body', 'formatting', 'contact', 'structure', 'good', 'bad', 'final'];
     const missingFields = requiredFields.filter(field => !(field in analysisResult));
     
     if (missingFields.length > 0) {
       await logError('Missing Response Fields', `Missing fields: ${missingFields.join(', ')}\nResponse: ${JSON.stringify(analysisResult)}`);
-      throw new Error('ATS scan failed. Please try again later.');
+      
+      // Fill in missing fields with defaults
+      if (!analysisResult.header) analysisResult.header = 5;
+      if (!analysisResult.body) analysisResult.body = 5;
+      if (!analysisResult.formatting) analysisResult.formatting = 5;
+      if (!analysisResult.contact) analysisResult.contact = 5;
+      if (!analysisResult.structure) analysisResult.structure = 5;
+      if (!Array.isArray(analysisResult.good)) analysisResult.good = ['Analysis completed'];
+      if (!Array.isArray(analysisResult.bad)) analysisResult.bad = ['Please try uploading a clearer version'];
+      if (!analysisResult.final) analysisResult.final = 5;
     }
+
+    // Ensure scores are in valid range
+    ['header', 'body', 'formatting', 'contact', 'structure', 'final'].forEach(field => {
+      if (typeof analysisResult[field] !== 'number' || analysisResult[field] < 1 || analysisResult[field] > 10) {
+        analysisResult[field] = Math.max(1, Math.min(10, parseInt(analysisResult[field]) || 5));
+      }
+    });
 
     console.log('Analysis successful:', analysisResult);
     return new Response(JSON.stringify(analysisResult), {
@@ -163,7 +192,7 @@ Provide specific, actionable feedback in the "good" and "bad" arrays.`;
     await logError('ATS Scan Function Error', `${error.message || 'Unknown error occurred'}\nStack: ${error.stack || 'No stack trace'}`);
     
     return new Response(
-      JSON.stringify({ error: error.message || 'ATS scan failed. Please try again later.' }),
+      JSON.stringify({ error: error.message || 'ATS analysis failed. Please try again with a different file.' }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

@@ -39,6 +39,22 @@ const AtsChecker = () => {
     }
   };
 
+  const saveDebugData = async (name: string, parsedData: string, sentData: string, receivedData: any) => {
+    try {
+      await supabase
+        .from('ats_test')
+        .insert({
+          name,
+          parsed_data: parsedData,
+          sent_data: sentData,
+          received_data: receivedData
+        });
+      console.log('Debug data saved successfully');
+    } catch (err) {
+      console.error('Failed to save debug data:', err);
+    }
+  };
+
   const handleFileUpload = (file: File) => {
     setUploadedFile(file);
     setShowResults(false);
@@ -56,6 +72,8 @@ const AtsChecker = () => {
       const formData = new FormData();
       formData.append('file', uploadedFile);
 
+      console.log('Calling PDF parser function...');
+      
       // Call the PDF parser edge function
       const { data: pdfData, error: pdfError } = await supabase.functions.invoke('pdf-parser', {
         body: formData,
@@ -70,35 +88,46 @@ const AtsChecker = () => {
         await logError('PDF Parsing Error', pdfData.error);
         toast({
           title: "File Processing Failed",
-          description: "We couldn't scan this file. Try uploading a text-based PDF or .docx",
+          description: pdfData.error,
           variant: "destructive",
         });
         setIsScanning(false);
         return;
       }
 
-      const resumeText = pdfData.text;
+      const extractedText = pdfData.text;
+      console.log(`Successfully extracted ${extractedText.length} characters from file`);
+      console.log('First 500 characters:', extractedText.substring(0, 500));
       
-      if (!resumeText || resumeText.length < 50) {
-        const errorMsg = `Could not extract sufficient text from file. Extracted length: ${resumeText?.length || 0}`;
+      if (!extractedText || extractedText.length < 50) {
+        const errorMsg = `Could not extract sufficient text from file. Extracted length: ${extractedText?.length || 0}`;
         await logError('File Text Extraction Error', errorMsg);
         
         toast({
           title: "File Processing Failed",
-          description: "We couldn't scan this file. Try uploading a text-based PDF or .docx",
+          description: "We couldn't extract enough readable text from this file. Please try a different format or ensure your document contains selectable text.",
           variant: "destructive",
         });
         setIsScanning(false);
         return;
       }
 
-      console.log(`Successfully extracted ${resumeText.length} characters from file`);
-      console.log('Sending to DeepSeek for ATS analysis...');
+      // Prepare data for DeepSeek
+      const resumeText = extractedText.trim();
+      console.log('Sending to DeepSeek for analysis...');
       
       // Call the ATS analysis function
       const { data, error } = await supabase.functions.invoke('ats-scan', {
         body: { resumeText },
       });
+
+      // Save debug data
+      await saveDebugData(
+        uploadedFile.name,
+        extractedText,
+        resumeText,
+        data || { error: error?.message }
+      );
 
       if (error) {
         await logError('Supabase Function Error', `${error.message || 'Unknown error'}\nDetails: ${JSON.stringify(error)}`);
@@ -109,7 +138,7 @@ const AtsChecker = () => {
         await logError('Analysis Response Error', data.error);
         toast({
           title: "ATS Scan Failed",
-          description: "ATS scan failed. Please try again later.",
+          description: data.error,
           variant: "destructive",
         });
         setIsScanning(false);
@@ -122,18 +151,20 @@ const AtsChecker = () => {
         throw new Error('Invalid response data structure');
       }
 
+      console.log('Analysis successful:', data);
+
       // Transform the data to match the ResultsSection component
       const transformedResults = {
         scores: {
           header: data.header || 0,
-          body: data.body || data.content || 0,
-          formatting: data.formatting || data.structure || 0,
-          contact: data.contact || data.header || 0,
-          structure: data.structure || data.workExperience || 0
+          body: data.body || 0,
+          formatting: data.formatting || 0,
+          contact: data.contact || 0,
+          structure: data.structure || 0
         },
-        whatWentWell: Array.isArray(data.good) ? data.good : (Array.isArray(data.whatWentWell) ? data.whatWentWell : []),
-        improvements: Array.isArray(data.bad) ? data.bad : (Array.isArray(data.improvements) ? data.improvements : []),
-        finalScore: data.final || data.finalScore || 0
+        whatWentWell: Array.isArray(data.good) ? data.good : [],
+        improvements: Array.isArray(data.bad) ? data.bad : [],
+        finalScore: data.final || 0
       };
 
       setResults(transformedResults);
