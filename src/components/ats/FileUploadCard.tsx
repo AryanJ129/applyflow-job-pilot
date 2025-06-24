@@ -19,7 +19,7 @@ const FileUploadCard = ({ onFileUpload, uploadedFile }: FileUploadCardProps) => 
     const files = e.dataTransfer.files;
     if (files.length > 0) {
       const file = files[0];
-      const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document', 'text/plain'];
+      const allowedTypes = ['application/pdf', 'application/vnd.openxmlformats-officedocument.wordprocessingml.document'];
       if (allowedTypes.includes(file.type)) {
         onFileUpload(file);
       }
@@ -43,7 +43,6 @@ const FileUploadCard = ({ onFileUpload, uploadedFile }: FileUploadCardProps) => 
   const getFileIcon = (file: File) => {
     if (file.type === 'application/pdf') return '📄';
     if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') return '📝';
-    if (file.type === 'text/plain') return '📃';
     return '📄';
   };
 
@@ -88,7 +87,7 @@ const FileUploadCard = ({ onFileUpload, uploadedFile }: FileUploadCardProps) => 
             Drag and drop your resume here, or click to browse
           </p>
           <p className="text-sm text-muted-foreground mb-4">
-            <strong>Best:</strong> PDF files | Also supports: Word (.docx), Text (.txt)
+            <strong>Supported formats:</strong> PDF (.pdf) and Word (.docx)
           </p>
           
           <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
@@ -97,7 +96,7 @@ const FileUploadCard = ({ onFileUpload, uploadedFile }: FileUploadCardProps) => 
               <div className="text-left">
                 <p className="text-sm font-medium text-blue-800">💡 Best Results</p>
                 <p className="text-xs text-blue-700">
-                  For optimal text extraction, use text-based PDFs. If you're having issues with LaTeX-generated PDFs, try uploading a Word document instead.
+                  For optimal text extraction, use text-based PDFs or native Word documents. Scanned documents may not work well.
                 </p>
               </div>
             </div>
@@ -106,7 +105,7 @@ const FileUploadCard = ({ onFileUpload, uploadedFile }: FileUploadCardProps) => 
           <input
             ref={fileInputRef}
             type="file"
-            accept=".pdf,.docx,.txt"
+            accept=".pdf,.docx"
             onChange={handleFileSelect}
             className="hidden"
           />

@@ -7,6 +7,7 @@ import { toast } from '@/hooks/use-toast';
 import FileUploadCard from '@/components/ats/FileUploadCard';
 import ResultsSection from '@/components/ats/ResultsSection';
 import BackButton from '@/components/auth/BackButton';
+import * as mammoth from 'mammoth';
 
 const AtsChecker = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -55,7 +56,73 @@ const AtsChecker = () => {
     }
   };
 
+  const extractTextFromDocx = async (file: File): Promise<string> => {
+    try {
+      console.log('Processing DOCX file...');
+      const arrayBuffer = await file.arrayBuffer();
+      
+      const result = await mammoth.extractRawText({ arrayBuffer });
+      const extractedText = result.value;
+      
+      console.log(`Extracted ${extractedText.length} characters from DOCX`);
+      console.log('DOCX text preview:', extractedText.substring(0, 300));
+      
+      if (!extractedText || extractedText.trim().length < 50) {
+        throw new Error(`Could not extract sufficient text from DOCX. Extracted length: ${extractedText?.length || 0}`);
+      }
+      
+      return extractedText.trim();
+    } catch (error) {
+      console.error('DOCX extraction error:', error);
+      throw new Error(`Failed to extract text from DOCX: ${error.message}`);
+    }
+  };
+
+  const extractTextFromFile = async (file: File): Promise<string> => {
+    const fileExtension = file.name.toLowerCase().split('.').pop();
+    
+    if (fileExtension === 'pdf') {
+      // Use existing PDF parser edge function
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const { data: pdfData, error: pdfError } = await supabase.functions.invoke('pdf-parser', {
+        body: formData,
+      });
+
+      if (pdfError) {
+        await logError('PDF Parser Function Error', `${pdfError.message || 'Unknown error'}\nDetails: ${JSON.stringify(pdfError)}`);
+        throw pdfError;
+      }
+
+      if (pdfData.error) {
+        await logError('PDF Parsing Error', pdfData.error);
+        throw new Error(pdfData.error);
+      }
+
+      return pdfData.text;
+    } else if (fileExtension === 'docx') {
+      // Extract text directly from DOCX using mammoth
+      return await extractTextFromDocx(file);
+    } else {
+      throw new Error('Unsupported file format. Please upload a PDF or DOCX file.');
+    }
+  };
+
   const handleFileUpload = (file: File) => {
+    // Validate file type
+    const allowedExtensions = ['pdf', 'docx'];
+    const fileExtension = file.name.toLowerCase().split('.').pop();
+    
+    if (!allowedExtensions.includes(fileExtension)) {
+      toast({
+        title: "Unsupported File Type",
+        description: "Please upload a PDF or DOCX file only.",
+        variant: "destructive",
+      });
+      return;
+    }
+    
     setUploadedFile(file);
     setShowResults(false);
   };
@@ -68,34 +135,9 @@ const AtsChecker = () => {
     try {
       console.log('Starting ATS analysis...');
       
-      // Create FormData for the file
-      const formData = new FormData();
-      formData.append('file', uploadedFile);
-
-      console.log('Calling PDF parser function...');
+      // Extract text based on file type
+      const extractedText = await extractTextFromFile(uploadedFile);
       
-      // Call the PDF parser edge function
-      const { data: pdfData, error: pdfError } = await supabase.functions.invoke('pdf-parser', {
-        body: formData,
-      });
-
-      if (pdfError) {
-        await logError('PDF Parser Function Error', `${pdfError.message || 'Unknown error'}\nDetails: ${JSON.stringify(pdfError)}`);
-        throw pdfError;
-      }
-
-      if (pdfData.error) {
-        await logError('PDF Parsing Error', pdfData.error);
-        toast({
-          title: "File Processing Failed",
-          description: pdfData.error,
-          variant: "destructive",
-        });
-        setIsScanning(false);
-        return;
-      }
-
-      const extractedText = pdfData.text;
       console.log(`Successfully extracted ${extractedText.length} characters from file`);
       console.log('First 500 characters:', extractedText.substring(0, 500));
       
