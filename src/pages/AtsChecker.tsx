@@ -3,12 +3,10 @@ import React, { useState } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import FileUploadCard from '@/components/ats/FileUploadCard';
-import ChecklistSection from '@/components/ats/ChecklistSection';
 import ResultsSection from '@/components/ats/ResultsSection';
 
 const AtsChecker = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
-  const [selectedChecks, setSelectedChecks] = useState<string[]>(['jobTitle', 'keywords', 'formatting', 'contact', 'structure']);
   const [isScanning, setIsScanning] = useState(false);
   const [showResults, setShowResults] = useState(false);
   const [results, setResults] = useState<any>(null);
@@ -55,14 +53,6 @@ const AtsChecker = () => {
     }, 2000);
   };
 
-  const toggleCheck = (checkId: string) => {
-    setSelectedChecks(prev => 
-      prev.includes(checkId) 
-        ? prev.filter(id => id !== checkId)
-        : [...prev, checkId]
-    );
-  };
-
   return (
     <div className="min-h-screen bg-white">
       <div className="max-w-4xl mx-auto px-6 py-12">
@@ -81,14 +71,6 @@ const AtsChecker = () => {
           <FileUploadCard 
             onFileUpload={handleFileUpload}
             uploadedFile={uploadedFile}
-          />
-        </div>
-
-        {/* Checklist Section */}
-        <div className="mb-8">
-          <ChecklistSection 
-            selectedChecks={selectedChecks}
-            onToggleCheck={toggleCheck}
           />
         </div>
 
