@@ -1,11 +1,14 @@
+
 import React, { useState, useEffect } from 'react';
 import { Button } from '@/components/ui/button';
 import { Upload, FileText, CheckCircle, AlertCircle } from 'lucide-react';
 import { useNavigate } from 'react-router-dom';
 import { supabase } from '@/integrations/supabase/client';
+import { toast } from '@/components/ui/use-toast';
 import FileUploadCard from '@/components/ats/FileUploadCard';
 import ResultsSection from '@/components/ats/ResultsSection';
 import BackButton from '@/components/auth/BackButton';
+import { extractTextFromPDF } from '@/utils/pdfParser';
 
 const AtsChecker = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -25,30 +28,6 @@ const AtsChecker = () => {
     checkAuth();
   }, [navigate]);
 
-  // Mock data for results
-  const mockResults = {
-    scores: {
-      header: 7,
-      bodyContent: 5,
-      formatting: 8,
-      contact: 9,
-      structure: 6
-    },
-    whatWentWell: [
-      "Clear contact information is present",
-      "Professional formatting with consistent spacing",
-      "Good use of bullet points for readability",
-      "Proper section headers and structure"
-    ],
-    improvements: [
-      "Missing relevant keywords for target role",
-      "Work experience descriptions could be more quantified",
-      "Skills section needs better organization",
-      "Consider adding more industry-specific terminology"
-    ],
-    finalScore: 7.0
-  };
-
   const handleFileUpload = (file: File) => {
     setUploadedFile(file);
     setShowResults(false);
@@ -59,12 +38,74 @@ const AtsChecker = () => {
     
     setIsScanning(true);
     
-    // Simulate API call
-    setTimeout(() => {
-      setResults(mockResults);
+    try {
+      // Extract text from PDF
+      console.log('Extracting text from PDF...');
+      const resumeText = await extractTextFromPDF(uploadedFile);
+      
+      if (!resumeText || resumeText.length < 50) {
+        toast({
+          title: "Error",
+          description: "Could not extract text from the PDF. Please ensure it's a valid resume.",
+          variant: "destructive",
+        });
+        setIsScanning(false);
+        return;
+      }
+
+      console.log('Sending to DeepSeek for analysis...');
+      
+      // Call the edge function for analysis
+      const { data, error } = await supabase.functions.invoke('ats-scan', {
+        body: { resumeText },
+      });
+
+      if (error) {
+        throw error;
+      }
+
+      if (data.error) {
+        toast({
+          title: "Invalid Document",
+          description: data.error,
+          variant: "destructive",
+        });
+        setIsScanning(false);
+        return;
+      }
+
+      // Transform the data to match the existing UI structure
+      const transformedResults = {
+        scores: {
+          header: data.header,
+          bodyContent: data.content,
+          formatting: data.structure,
+          contact: data.header, // Using header score for contact
+          structure: data.workExperience
+        },
+        whatWentWell: data.whatWentWell,
+        improvements: data.improvements,
+        finalScore: data.finalScore
+      };
+
+      setResults(transformedResults);
       setShowResults(true);
+      
+      toast({
+        title: "Analysis Complete",
+        description: "Your resume has been analyzed successfully!",
+      });
+      
+    } catch (error) {
+      console.error('Analysis error:', error);
+      toast({
+        title: "Analysis Failed",
+        description: "There was an error analyzing your resume. Please try again.",
+        variant: "destructive",
+      });
+    } finally {
       setIsScanning(false);
-    }, 2000);
+    }
   };
 
   return (
@@ -78,7 +119,7 @@ const AtsChecker = () => {
             ATS Checker
           </h1>
           <p className="text-muted-foreground text-lg max-w-2xl mx-auto">
-            Upload your resume and get instant feedback on how ATS-friendly it is.
+            Upload your resume and get instant AI-powered feedback on how ATS-friendly it is.
           </p>
         </div>
 
@@ -100,7 +141,7 @@ const AtsChecker = () => {
             {isScanning ? (
               <>
                 <div className="animate-spin rounded-full h-5 w-5 border-b-2 border-white mr-2"></div>
-                Scanning...
+                Analyzing with AI...
               </>
             ) : (
               'Run ATS Scan'

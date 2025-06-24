@@ -29,10 +29,10 @@ const ResultsSection = ({ results }: ResultsSectionProps) => {
 
   const categoryLabels = {
     header: 'Header',
-    bodyContent: 'Body Content',
-    formatting: 'Formatting',
+    bodyContent: 'Content',
+    formatting: 'Formatting', 
     contact: 'Contact Info',
-    structure: 'Structure'
+    structure: 'Work Experience'
   };
 
   return (
@@ -41,7 +41,7 @@ const ResultsSection = ({ results }: ResultsSectionProps) => {
     }`}>
       <Card className="p-8 shadow-lg">
         <h2 className="text-2xl font-bold text-[hsl(222.2_84%_4.9%)] mb-8 text-center">
-          ATS Scan Results
+          ATS Analysis Results
         </h2>
 
         {/* Category Scores */}
