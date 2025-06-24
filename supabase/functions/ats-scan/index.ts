@@ -46,8 +46,9 @@ serve(async (req) => {
     }
 
     console.log('Analyzing resume with DeepSeek...');
+    console.log('Resume text preview:', resumeText.substring(0, 500) + '...');
 
-    const systemPrompt = `You are an ATS scoring assistant. Given a raw resume, return scores and feedback on the following categories (scale of 1 to 10):
+    const systemPrompt = `You are an ATS scoring assistant. Given a raw resume text, return scores and feedback on the following categories (scale of 1 to 10):
 
 1. Header - Contact information, name, professional title
 2. Content - Overall content quality and relevance
@@ -60,7 +61,7 @@ Then provide:
 - What Needs Improvement (areas for enhancement)
 - Final Score: average of the above 5 categories, rounded to 1 decimal
 
-If the text doesn't appear to be a resume, respond with: {"error": "Please upload a resume!"}
+IMPORTANT: Only analyze actual resume content. If the text doesn't contain typical resume elements (name, experience, skills, education), respond with: {"error": "Please upload a resume!"}
 
 Respond ONLY in this JSON format (no markdown formatting):
 {
@@ -134,6 +135,7 @@ Respond ONLY in this JSON format (no markdown formatting):
 
     // Check if it's an error response
     if (analysisResult.error) {
+      await logError('AI Analysis Error', `DeepSeek returned error: ${analysisResult.error}\nResume text length: ${resumeText.length}\nResume preview: ${resumeText.substring(0, 200)}`);
       return new Response(JSON.stringify({ error: analysisResult.error }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
