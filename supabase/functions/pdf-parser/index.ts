@@ -1,4 +1,3 @@
-
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 
@@ -24,52 +23,32 @@ serve(async (req) => {
       });
     }
 
-    if (file.type !== 'application/pdf') {
-      return new Response(JSON.stringify({ error: "Only PDF files are supported" }), {
+    console.log(`Processing file: ${file.name}, type: ${file.type}, size: ${file.size} bytes`);
+
+    let extractedText = '';
+
+    // Handle different file types
+    if (file.type === 'application/pdf') {
+      extractedText = await processPDF(file);
+    } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document') {
+      extractedText = await processWordDocument(file);
+    } else if (file.type === 'text/plain') {
+      extractedText = await processTextFile(file);
+    } else {
+      return new Response(JSON.stringify({ error: "Unsupported file type. Please upload PDF, Word (.docx), or text (.txt) files." }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
 
-    console.log(`Processing PDF: ${file.name}, size: ${file.size} bytes`);
-
-    // Convert file to array buffer
-    const arrayBuffer = await file.arrayBuffer();
-    const uint8Array = new Uint8Array(arrayBuffer);
-
-    // Try to extract text using multiple methods
-    let extractedText = '';
-
-    // Method 1: Try comprehensive PDF parsing
-    extractedText = await comprehensivePDFParse(uint8Array);
-
-    // Method 2: If not enough text, try LaTeX-specific extraction
-    if (extractedText.length < 100) {
-      console.log('Trying LaTeX-specific extraction...');
-      extractedText = await latexPDFExtraction(uint8Array);
-    }
-
-    // Method 3: Try character pattern extraction
-    if (extractedText.length < 100) {
-      console.log('Trying character pattern extraction...');
-      extractedText = await characterPatternExtraction(uint8Array);
-    }
-
-    // Clean and validate the extracted text
+    // Validate extracted text
     const cleanedText = cleanAndValidateText(extractedText);
-
     console.log(`Final extracted text length: ${cleanedText.length}`);
     console.log(`Text preview: ${cleanedText.substring(0, 300)}...`);
 
     if (cleanedText.length < 50) {
       return new Response(JSON.stringify({ 
-        error: `Could not extract sufficient readable text from PDF. This appears to be a LaTeX-generated or scanned PDF. Please try:
-1. Exporting your LaTeX resume as a different PDF format
-2. Converting to Word format first, then to PDF
-3. Using "Save as Text" from your PDF viewer
-4. Uploading a Word document instead
-
-Extracted preview: "${cleanedText.substring(0, 100)}..."` 
+        error: `Could not extract sufficient readable text from the file. ${getFileSpecificError(file.type)}` 
       }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -81,15 +60,112 @@ Extracted preview: "${cleanedText.substring(0, 100)}..."`
     });
 
   } catch (error) {
-    console.error('PDF parsing error:', error);
+    console.error('File parsing error:', error);
     return new Response(JSON.stringify({ 
-      error: `PDF parsing failed: ${error.message}. This might be a LaTeX-generated PDF with complex encoding. Please try uploading a Word document or plain text version of your resume.` 
+      error: `File parsing failed: ${error.message}. Please try a different file format or ensure your document contains selectable text.` 
     }), {
       status: 500,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   }
 });
+
+async function processPDF(file: File): Promise<string> {
+  console.log('Processing PDF file...');
+  const arrayBuffer = await file.arrayBuffer();
+  const uint8Array = new Uint8Array(arrayBuffer);
+
+  let extractedText = '';
+
+  // Try multiple PDF parsing methods for LaTeX compatibility
+  extractedText = await comprehensivePDFParse(uint8Array);
+
+  if (extractedText.length < 100) {
+    console.log('Trying LaTeX-specific extraction...');
+    extractedText = await latexPDFExtraction(uint8Array);
+  }
+
+  if (extractedText.length < 100) {
+    console.log('Trying simple text extraction...');
+    extractedText = await simpleTextExtraction(uint8Array);
+  }
+
+  return extractedText;
+}
+
+async function processWordDocument(file: File): Promise<string> {
+  console.log('Processing Word document...');
+  
+  try {
+    // Read the Word document as a zip file (since .docx is a zip)
+    const arrayBuffer = await file.arrayBuffer();
+    const decoder = new TextDecoder();
+    
+    // Try to extract text from the raw content
+    // This is a simplified approach - for production, you'd want a proper DOCX parser
+    const content = decoder.decode(arrayBuffer);
+    
+    // Look for readable text patterns in the document
+    const textPatterns = [
+      // XML text content
+      /<w:t[^>]*>([^<]+)<\/w:t>/g,
+      // Plain text sequences
+      /[a-zA-Z][a-zA-Z0-9\s@.\-(),]{10,200}/g,
+    ];
+    
+    let extractedText = '';
+    
+    for (const pattern of textPatterns) {
+      const matches = content.match(pattern);
+      if (matches) {
+        for (const match of matches) {
+          let text = match;
+          // Clean XML tags if present
+          text = text.replace(/<[^>]*>/g, ' ');
+          // Clean up whitespace
+          text = text.replace(/\s+/g, ' ').trim();
+          
+          if (text.length > 3 && /[a-zA-Z]/.test(text)) {
+            extractedText += text + ' ';
+          }
+        }
+      }
+    }
+    
+    // If we didn't find much text, try a different approach
+    if (extractedText.length < 100) {
+      // Look for any readable sequences
+      const readableText = content.match(/[a-zA-Z]{3,}[a-zA-Z0-9\s@.\-()]{5,}/g);
+      if (readableText) {
+        extractedText = readableText.join(' ');
+      }
+    }
+    
+    return extractedText.trim();
+  } catch (error) {
+    console.error('Word document processing failed:', error);
+    throw new Error('Failed to extract text from Word document. Please save as PDF or text file.');
+  }
+}
+
+async function processTextFile(file: File): Promise<string> {
+  console.log('Processing text file...');
+  const text = await file.text();
+  return text.trim();
+}
+
+function getFileSpecificError(fileType: string): string {
+  switch (fileType) {
+    case 'application/pdf':
+      return 'This appears to be a LaTeX-generated or scanned PDF. Please try: 1) Converting to Word format, 2) Copying text and saving as .txt file, or 3) Using "Save as Text" from your PDF viewer.';
+    case 'application/vnd.openxmlformats-officedocument.wordprocessingml.document':
+      return 'Could not extract text from this Word document. Please try saving as PDF or copying the text to a .txt file.';
+    case 'text/plain':
+      return 'The text file appears to be empty or contains very little content.';
+    default:
+      return 'Please ensure your file contains readable text content.';
+  }
+}
 
 async function comprehensivePDFParse(buffer: Uint8Array): Promise<string> {
   let extractedText = '';
@@ -210,7 +286,7 @@ async function latexPDFExtraction(buffer: Uint8Array): Promise<string> {
   return extractedText.trim();
 }
 
-async function characterPatternExtraction(buffer: Uint8Array): Promise<string> {
+async function simpleTextExtraction(buffer: Uint8Array): Promise<string> {
   let extractedText = '';
   
   const encodings = ['utf-8', 'latin1', 'windows-1252', 'ascii'];
