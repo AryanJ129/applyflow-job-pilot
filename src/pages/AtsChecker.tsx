@@ -8,6 +8,10 @@ import FileUploadCard from '@/components/ats/FileUploadCard';
 import ResultsSection from '@/components/ats/ResultsSection';
 import BackButton from '@/components/auth/BackButton';
 import * as mammoth from 'mammoth';
+import * as pdfjsLib from 'pdfjs-dist';
+
+// Set up the worker
+pdfjsLib.GlobalWorkerOptions.workerSrc = `//cdnjs.cloudflare.com/ajax/libs/pdf.js/${pdfjsLib.version}/pdf.worker.min.js`;
 
 const AtsChecker = () => {
   const [uploadedFile, setUploadedFile] = useState<File | null>(null);
@@ -56,6 +60,47 @@ const AtsChecker = () => {
     }
   };
 
+  const extractTextFromPDF = async (file: File): Promise<string> => {
+    try {
+      console.log('Processing PDF file with pdfjs-dist...');
+      const arrayBuffer = await file.arrayBuffer();
+      
+      const pdf = await pdfjsLib.getDocument({ data: arrayBuffer }).promise;
+      let extractedText = '';
+      
+      // Extract text from all pages
+      for (let i = 1; i <= pdf.numPages; i++) {
+        const page = await pdf.getPage(i);
+        const textContent = await page.getTextContent();
+        
+        // Combine all text items from the page
+        const pageText = textContent.items
+          .map((item: any) => item.str)
+          .join(' ');
+        
+        extractedText += pageText + ' ';
+      }
+      
+      // Clean the extracted text
+      const cleanedText = extractedText
+        .replace(/\s{2,}/g, ' ') // Remove multiple spaces
+        .replace(/[^\x20-\x7E]/g, '') // Remove weird binary characters
+        .trim();
+      
+      console.log(`Extracted ${cleanedText.length} characters from PDF`);
+      console.log('PDF text preview:', cleanedText.substring(0, 300));
+      
+      if (!cleanedText || cleanedText.trim().length < 50) {
+        throw new Error(`Could not extract sufficient text from PDF. Extracted length: ${cleanedText?.length || 0}`);
+      }
+      
+      return cleanedText;
+    } catch (error) {
+      console.error('PDF extraction error:', error);
+      throw new Error(`We couldn't read this PDF. Try uploading another one.`);
+    }
+  };
+
   const extractTextFromDocx = async (file: File): Promise<string> => {
     try {
       console.log('Processing DOCX file...');
@@ -82,27 +127,8 @@ const AtsChecker = () => {
     const fileExtension = file.name.toLowerCase().split('.').pop();
     
     if (fileExtension === 'pdf') {
-      // Use existing PDF parser edge function
-      const formData = new FormData();
-      formData.append('file', file);
-
-      const { data: pdfData, error: pdfError } = await supabase.functions.invoke('pdf-parser', {
-        body: formData,
-      });
-
-      if (pdfError) {
-        await logError('PDF Parser Function Error', `${pdfError.message || 'Unknown error'}\nDetails: ${JSON.stringify(pdfError)}`);
-        throw pdfError;
-      }
-
-      if (pdfData.error) {
-        await logError('PDF Parsing Error', pdfData.error);
-        throw new Error(pdfData.error);
-      }
-
-      return pdfData.text;
+      return await extractTextFromPDF(file);
     } else if (fileExtension === 'docx') {
-      // Extract text directly from DOCX using mammoth
       return await extractTextFromDocx(file);
     } else {
       throw new Error('Unsupported file format. Please upload a PDF or DOCX file.');
@@ -224,8 +250,8 @@ const AtsChecker = () => {
       await logError('ATS Scan Error', `${errorMessage}\nStack: ${error.stack || 'No stack trace'}`);
       
       toast({
-        title: "ATS Scan Failed",
-        description: "ATS scan failed. Please try again later.",
+        title: "File Processing Failed",
+        description: errorMessage,
         variant: "destructive",
       });
     } finally {
