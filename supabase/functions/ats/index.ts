@@ -15,6 +15,9 @@ async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
     // Use pdfjs-dist via CDN for Deno compatibility
     const pdfjsLib = await import('https://esm.sh/pdfjs-dist@4.0.379/build/pdf.min.mjs');
     
+    // Set worker source to avoid GlobalWorkerOptions error
+    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@4.0.379/build/pdf.worker.min.mjs';
+    
     // Load PDF document
     const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
     let fullText = '';
