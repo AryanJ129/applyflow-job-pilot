@@ -38,7 +38,7 @@ serve(async (req) => {
     const { resumeText, jobRole } = await req.json();
 
     if (!resumeText || resumeText.length < 50) {
-      await logError('Invalid Resume Text', `Resume text too short: ${resumeText?.length || 0} characters`);
+      await logError('Invalid Resume Text', `Resume text too short: ${resumeText?.length || 0} characters. Content preview: ${resumeText?.substring(0, 200) || 'null'}`);
       return new Response(JSON.stringify({ error: "Please upload a valid resume with readable content!" }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -46,22 +46,34 @@ serve(async (req) => {
     }
 
     console.log('Analyzing resume with DeepSeek...');
-    console.log('Resume text preview:', resumeText.substring(0, 500) + '...');
+    console.log('Resume text length:', resumeText.length);
+    console.log('Resume text preview:', resumeText.substring(0, 300) + '...');
 
-    const systemPrompt = `You are an ATS scoring assistant. Given a raw resume text, return scores and feedback on the following categories (scale of 1 to 10):
+    const systemPrompt = `You are an ATS scoring assistant. Analyze the following resume text and provide detailed feedback.
 
+IMPORTANT: The text provided is extracted from a PDF resume. Even if the formatting looks messy, look for actual resume content like:
+- Names, contact information
+- Work experience with companies, roles, dates
+- Education details
+- Skills listings
+- Any professional information
+
+If you can identify ANY legitimate resume content (even with poor formatting), analyze it normally.
+Only respond with the error message if the text contains absolutely NO resume-related information.
+
+Provide scores (1-10 scale) and feedback on:
 1. Header - Contact information, name, professional title
-2. Content - Overall content quality and relevance
+2. Content - Overall content quality and relevance  
 3. Work Experience - Quality and detail of work experience descriptions
 4. Keywords - Industry-relevant keywords and technical terms
-5. Structure - Organization, formatting, and readability
+5. Structure - Organization and readability (be lenient with extracted PDF text)
 
 Then provide:
 - What You Did Well (positive aspects)
 - What Needs Improvement (areas for enhancement)
 - Final Score: average of the above 5 categories, rounded to 1 decimal
 
-IMPORTANT: Only analyze actual resume content. If the text doesn't contain typical resume elements (name, experience, skills, education), respond with: {"error": "Please upload a resume!"}
+ONLY respond with: {"error": "Please upload a resume!"} if there is absolutely no resume content.
 
 Respond ONLY in this JSON format (no markdown formatting):
 {
@@ -123,7 +135,7 @@ Respond ONLY in this JSON format (no markdown formatting):
     try {
       analysisResult = JSON.parse(cleanedResponse);
     } catch (parseError) {
-      await logError('JSON Parse Error', `Failed to parse AI response: ${parseError.message}\nOriginal response: ${aiResponse}\nCleaned response: ${cleanedResponse}`);
+      await logError('JSON Parse Error', `Failed to parse AI response: ${parseError.message}\nOriginal response: ${aiResponse}\nCleaned response: ${cleanedResponse}\nResume length: ${resumeText.length}\nResume preview: ${resumeText.substring(0, 300)}`);
       throw new Error('Invalid response format from AI');
     }
 
@@ -135,7 +147,7 @@ Respond ONLY in this JSON format (no markdown formatting):
 
     // Check if it's an error response
     if (analysisResult.error) {
-      await logError('AI Analysis Error', `DeepSeek returned error: ${analysisResult.error}\nResume text length: ${resumeText.length}\nResume preview: ${resumeText.substring(0, 200)}`);
+      await logError('AI Analysis Error', `DeepSeek returned error: ${analysisResult.error}\nResume text length: ${resumeText.length}\nResume preview: ${resumeText.substring(0, 300)}\nFull resume text: ${resumeText}`);
       return new Response(JSON.stringify({ error: analysisResult.error }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
@@ -151,6 +163,7 @@ Respond ONLY in this JSON format (no markdown formatting):
       throw new Error('Incomplete response from AI');
     }
 
+    console.log('Analysis successful:', analysisResult);
     return new Response(JSON.stringify(analysisResult), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
@@ -158,7 +171,7 @@ Respond ONLY in this JSON format (no markdown formatting):
     console.error('Error in ats-scan function:', error);
     
     // Log the error for analysis
-    await logError('ATS Scan Function Error', error.message || 'Unknown error occurred');
+    await logError('ATS Scan Function Error', `${error.message || 'Unknown error occurred'}\nStack: ${error.stack || 'No stack trace'}`);
     
     return new Response(
       JSON.stringify({ error: error.message || 'Analysis failed' }),
