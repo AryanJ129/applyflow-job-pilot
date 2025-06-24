@@ -68,7 +68,7 @@ const AtsChecker = () => {
       const formData = new FormData();
       formData.append('resume', uploadedFile);
 
-      const { data, error } = await supabase.functions.invoke('ats-scan', {
+      const { data, error } = await supabase.functions.invoke('ats', {
         body: formData,
       });
 
@@ -83,7 +83,7 @@ const AtsChecker = () => {
 
       console.log('Raw result from API:', data.result);
 
-      // Parse the JSON response from DeepSeek
+      // Parse the JSON response from OpenAI
       let parsed;
       try {
         parsed = JSON.parse(data.result);
