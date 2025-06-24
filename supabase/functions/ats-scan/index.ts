@@ -1,13 +1,32 @@
 
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
+import { createClient } from 'https://esm.sh/@supabase/supabase-js@2.50.0';
 
 const deepseekApiKey = Deno.env.get('DEEPSEEK_API_KEY');
+const supabaseUrl = Deno.env.get('SUPABASE_URL');
+const supabaseServiceKey = Deno.env.get('SUPABASE_SERVICE_ROLE_KEY');
 
 const corsHeaders = {
   'Access-Control-Allow-Origin': '*',
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
+
+// Initialize Supabase client for error logging
+const supabase = createClient(supabaseUrl!, supabaseServiceKey!);
+
+async function logError(name: string, error: string) {
+  try {
+    await supabase
+      .from('error_logs')
+      .insert({
+        name,
+        error: error.substring(0, 1000) // Limit error message length
+      });
+  } catch (logErr) {
+    console.error('Failed to log error:', logErr);
+  }
+}
 
 serve(async (req) => {
   // Handle CORS preflight requests
@@ -17,6 +36,14 @@ serve(async (req) => {
 
   try {
     const { resumeText, jobRole } = await req.json();
+
+    if (!resumeText || resumeText.length < 50) {
+      await logError('Invalid Resume Text', `Resume text too short: ${resumeText?.length || 0} characters`);
+      return new Response(JSON.stringify({ error: "Please upload a valid resume with readable content!" }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
 
     console.log('Analyzing resume with DeepSeek...');
 
@@ -35,7 +62,7 @@ Then provide:
 
 If the text doesn't appear to be a resume, respond with: {"error": "Please upload a resume!"}
 
-Respond ONLY in this JSON format:
+Respond ONLY in this JSON format (no markdown formatting):
 {
   "header": 7,
   "content": 5,
@@ -67,21 +94,42 @@ Respond ONLY in this JSON format:
     });
 
     if (!response.ok) {
-      throw new Error(`DeepSeek API error: ${response.status}`);
+      const errorMessage = `DeepSeek API error: ${response.status} - ${response.statusText}`;
+      await logError('DeepSeek API Error', errorMessage);
+      throw new Error(errorMessage);
     }
 
     const data = await response.json();
-    const aiResponse = data.choices[0].message.content;
+    
+    if (!data.choices || !data.choices[0] || !data.choices[0].message) {
+      await logError('Invalid DeepSeek Response', `Unexpected response structure: ${JSON.stringify(data)}`);
+      throw new Error('Invalid response structure from DeepSeek API');
+    }
 
+    const aiResponse = data.choices[0].message.content;
     console.log('DeepSeek response:', aiResponse);
+
+    // Clean the response - remove markdown code blocks if present
+    let cleanedResponse = aiResponse.trim();
+    if (cleanedResponse.startsWith('```json')) {
+      cleanedResponse = cleanedResponse.replace(/^```json\s*/, '').replace(/\s*```$/, '');
+    } else if (cleanedResponse.startsWith('```')) {
+      cleanedResponse = cleanedResponse.replace(/^```\s*/, '').replace(/\s*```$/, '');
+    }
 
     // Parse the JSON response
     let analysisResult;
     try {
-      analysisResult = JSON.parse(aiResponse);
+      analysisResult = JSON.parse(cleanedResponse);
     } catch (parseError) {
-      console.error('Failed to parse AI response:', parseError);
+      await logError('JSON Parse Error', `Failed to parse AI response: ${parseError.message}\nOriginal response: ${aiResponse}\nCleaned response: ${cleanedResponse}`);
       throw new Error('Invalid response format from AI');
+    }
+
+    // Validate the response structure
+    if (typeof analysisResult !== 'object' || analysisResult === null) {
+      await logError('Invalid Response Structure', `Response is not an object: ${JSON.stringify(analysisResult)}`);
+      throw new Error('Invalid response structure from AI');
     }
 
     // Check if it's an error response
@@ -92,11 +140,24 @@ Respond ONLY in this JSON format:
       });
     }
 
+    // Validate required fields
+    const requiredFields = ['header', 'content', 'workExperience', 'keywords', 'structure', 'whatWentWell', 'improvements', 'finalScore'];
+    const missingFields = requiredFields.filter(field => !(field in analysisResult));
+    
+    if (missingFields.length > 0) {
+      await logError('Missing Response Fields', `Missing fields: ${missingFields.join(', ')}\nResponse: ${JSON.stringify(analysisResult)}`);
+      throw new Error('Incomplete response from AI');
+    }
+
     return new Response(JSON.stringify(analysisResult), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (error) {
     console.error('Error in ats-scan function:', error);
+    
+    // Log the error for analysis
+    await logError('ATS Scan Function Error', error.message || 'Unknown error occurred');
+    
     return new Response(
       JSON.stringify({ error: error.message || 'Analysis failed' }),
       {

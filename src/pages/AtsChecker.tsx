@@ -28,6 +28,19 @@ const AtsChecker = () => {
     checkAuth();
   }, [navigate]);
 
+  const logError = async (name: string, error: string) => {
+    try {
+      await supabase
+        .from('error_logs')
+        .insert({
+          name,
+          error: error.substring(0, 1000) // Limit error message length
+        });
+    } catch (logErr) {
+      console.error('Failed to log error to database:', logErr);
+    }
+  };
+
   const handleFileUpload = (file: File) => {
     setUploadedFile(file);
     setShowResults(false);
@@ -44,15 +57,19 @@ const AtsChecker = () => {
       const resumeText = await extractTextFromPDF(uploadedFile);
       
       if (!resumeText || resumeText.length < 50) {
+        const errorMsg = `Could not extract sufficient text from PDF. Extracted length: ${resumeText?.length || 0}`;
+        await logError('PDF Text Extraction Error', errorMsg);
+        
         toast({
           title: "Error",
-          description: "Could not extract text from the PDF. Please ensure it's a valid resume.",
+          description: "Could not extract text from the PDF. Please ensure it's a valid resume with readable content.",
           variant: "destructive",
         });
         setIsScanning(false);
         return;
       }
 
+      console.log(`Extracted ${resumeText.length} characters from PDF`);
       console.log('Sending to DeepSeek for analysis...');
       
       // Call the edge function for analysis
@@ -61,10 +78,12 @@ const AtsChecker = () => {
       });
 
       if (error) {
+        await logError('Supabase Function Error', `${error.message || 'Unknown error'}\nDetails: ${JSON.stringify(error)}`);
         throw error;
       }
 
       if (data.error) {
+        await logError('Analysis Response Error', data.error);
         toast({
           title: "Invalid Document",
           description: data.error,
@@ -74,18 +93,24 @@ const AtsChecker = () => {
         return;
       }
 
+      // Validate response data
+      if (!data || typeof data !== 'object') {
+        await logError('Invalid Response Data', `Response is not an object: ${JSON.stringify(data)}`);
+        throw new Error('Invalid response data structure');
+      }
+
       // Transform the data to match the existing UI structure
       const transformedResults = {
         scores: {
-          header: data.header,
-          bodyContent: data.content,
-          formatting: data.structure,
-          contact: data.header, // Using header score for contact
-          structure: data.workExperience
+          header: data.header || 0,
+          bodyContent: data.content || 0,
+          formatting: data.structure || 0,
+          contact: data.header || 0, // Using header score for contact
+          structure: data.workExperience || 0
         },
-        whatWentWell: data.whatWentWell,
-        improvements: data.improvements,
-        finalScore: data.finalScore
+        whatWentWell: Array.isArray(data.whatWentWell) ? data.whatWentWell : [],
+        improvements: Array.isArray(data.improvements) ? data.improvements : [],
+        finalScore: data.finalScore || 0
       };
 
       setResults(transformedResults);
@@ -98,9 +123,13 @@ const AtsChecker = () => {
       
     } catch (error) {
       console.error('Analysis error:', error);
+      
+      const errorMessage = error.message || 'Unknown error occurred';
+      await logError('ATS Scan Error', `${errorMessage}\nStack: ${error.stack || 'No stack trace'}`);
+      
       toast({
         title: "Analysis Failed",
-        description: "There was an error analyzing your resume. Please try again.",
+        description: "There was an error analyzing your resume. Please try again or contact support if the issue persists.",
         variant: "destructive",
       });
     } finally {

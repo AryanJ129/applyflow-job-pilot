@@ -9,6 +9,27 @@ export type Json =
 export type Database = {
   public: {
     Tables: {
+      error_logs: {
+        Row: {
+          error: string
+          id: string
+          name: string
+          time: string
+        }
+        Insert: {
+          error: string
+          id?: string
+          name: string
+          time?: string
+        }
+        Update: {
+          error?: string
+          id?: string
+          name?: string
+          time?: string
+        }
+        Relationships: []
+      }
       profiles: {
         Row: {
           created_at: string
