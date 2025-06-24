@@ -32,9 +32,9 @@ serve(async (req) => {
     let resumeText = '';
 
     if (file.name.toLowerCase().endsWith('.pdf')) {
-      console.log('Processing PDF file with pdfjs...');
+      console.log('Processing PDF file with improved extraction...');
       try {
-        resumeText = await extractTextFromPDFWithPdfjs(buffer);
+        resumeText = await extractTextFromPDFImproved(buffer);
       } catch (pdfError) {
         console.error('PDF parsing failed:', pdfError);
         return new Response(JSON.stringify({ 
@@ -96,7 +96,7 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are an ATS assistant. Given the resume text, return a JSON object with this structure:
+            content: `You are an ATS assistant. Given the resume text, return ONLY a valid JSON object with this exact structure (no markdown, no code blocks, no additional text):
 
 {
   "Header": 7,
@@ -115,7 +115,7 @@ serve(async (req) => {
   ]
 }
 
-Only return this JSON object and nothing else.`
+Return ONLY this JSON object and nothing else.`
           },
           {
             role: 'user',
@@ -133,9 +133,16 @@ Only return this JSON object and nothing else.`
     }
 
     const data = await response.json();
-    const raw = data.choices[0].message.content.trim();
+    let raw = data.choices[0].message.content.trim();
 
     console.log('DeepSeek raw reply:', raw);
+
+    // Clean up markdown code blocks if present
+    if (raw.startsWith('```json') && raw.endsWith('```')) {
+      raw = raw.slice(7, -3).trim();
+    } else if (raw.startsWith('```') && raw.endsWith('```')) {
+      raw = raw.slice(3, -3).trim();
+    }
 
     // Parse JSON response
     let parsed;
@@ -171,124 +178,98 @@ Only return this JSON object and nothing else.`
   }
 });
 
-// Robust PDF text extraction using pdfjs-dist for Deno
-async function extractTextFromPDFWithPdfjs(buffer: ArrayBuffer): Promise<string> {
+// Improved PDF text extraction using multiple strategies
+async function extractTextFromPDFImproved(buffer: ArrayBuffer): Promise<string> {
   try {
-    // Import pdfjs-dist for Deno
-    const pdfjs = await import('https://esm.sh/pdfjs-dist@4.4.168');
+    // Try method 1: Using pdf2json approach with better text extraction
+    const uint8Array = new Uint8Array(buffer);
+    const decoder = new TextDecoder('utf-8', { fatal: false });
+    let content = decoder.decode(uint8Array);
     
-    // Configure worker for Deno environment
-    pdfjs.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@4.4.168/build/pdf.worker.min.mjs';
+    // Strategy 1: Extract text from PDF stream objects
+    let extractedText = '';
     
-    console.log('Loading PDF document...');
-    const loadingTask = pdfjs.getDocument({ 
-      data: new Uint8Array(buffer),
-      // Disable worker for edge function compatibility
-      disableWorker: true,
-      isEvalSupported: false,
-    });
+    // Look for text streams with better patterns
+    const streamPattern = /stream\s*\r?\n([\s\S]*?)\r?\nendstream/gi;
+    const streamMatches = content.match(streamPattern);
     
-    const pdf = await loadingTask.promise;
-    console.log('PDF loaded, pages:', pdf.numPages);
-    
-    let fullText = '';
-    
-    // Extract text from each page
-    for (let pageNum = 1; pageNum <= pdf.numPages; pageNum++) {
-      console.log(`Processing page ${pageNum}...`);
-      
-      const page = await pdf.getPage(pageNum);
-      const textContent = await page.getTextContent();
-      
-      // Combine all text items from the page
-      const pageText = textContent.items
-        .map((item: any) => item.str || '')
-        .join(' ')
-        .replace(/\s+/g, ' ')
-        .trim();
-      
-      if (pageText) {
-        fullText += pageText + ' ';
-      }
-    }
-    
-    fullText = fullText.trim();
-    
-    if (fullText.length < 50) {
-      throw new Error('PDF appears to contain no readable text. This may be a scanned document or image-based PDF.');
-    }
-    
-    console.log('Successfully extracted text from PDF, length:', fullText.length);
-    return fullText;
-    
-  } catch (error) {
-    console.error('PDF.js extraction error:', error);
-    
-    // If pdfjs fails, try a simpler fallback approach
-    console.log('Falling back to basic PDF parsing...');
-    return await extractTextFromPDFSimple(buffer);
-  }
-}
-
-// Fallback PDF text extraction
-async function extractTextFromPDFSimple(buffer: ArrayBuffer): Promise<string> {
-  const uint8Array = new Uint8Array(buffer);
-  let text = '';
-  
-  try {
-    const decoder = new TextDecoder('latin1', { fatal: false });
-    const content = decoder.decode(uint8Array);
-    
-    // Extract text using improved patterns
-    const textPatterns = [
-      // Text in parentheses
-      /\(([^)]{2,100})\)/g,
-      // Text objects with BT/ET markers
-      /BT\s*((?:[^E]|E(?!T))*?)\s*ET/gs,
-      // Direct text strings
-      /\/F\d+\s+\d+\s+Tf\s*\(([^)]+)\)/g,
-    ];
-    
-    for (const pattern of textPatterns) {
-      const matches = content.match(pattern);
-      if (matches) {
-        for (const match of matches) {
-          let cleanText = match
-            .replace(/[()]/g, '')
-            .replace(/BT|ET|Tj|TJ/g, '')
-            .replace(/\/F\d+\s+\d+\s+Tf\s*/g, '')
-            .replace(/[^\w\s@.\-+]/g, ' ')
-            .replace(/\s+/g, ' ')
-            .trim();
-          
-          if (cleanText.length > 2 && /[a-zA-Z]{2,}/.test(cleanText)) {
-            text += cleanText + ' ';
+    if (streamMatches) {
+      for (const stream of streamMatches) {
+        const streamContent = stream.replace(/^stream\s*\r?\n/, '').replace(/\r?\nendstream$/, '');
+        
+        // Extract readable text from streams
+        const textPattern = /\((.*?)\)/g;
+        const textMatches = streamContent.match(textPattern);
+        
+        if (textMatches) {
+          for (const match of textMatches) {
+            const cleanText = match
+              .replace(/[()]/g, '')
+              .replace(/\\[rnt]/g, ' ')
+              .replace(/\\\\/g, '\\')
+              .trim();
+            
+            if (cleanText.length > 1 && /[a-zA-Z]/.test(cleanText)) {
+              extractedText += cleanText + ' ';
+            }
           }
         }
       }
     }
     
-    // Extract emails and phone numbers
-    const emailMatches = content.match(/[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}/g);
-    if (emailMatches) {
-      text += emailMatches.join(' ') + ' ';
+    // Strategy 2: Look for text objects with BT/ET markers
+    const textObjectPattern = /BT\s*(.*?)\s*ET/gs;
+    const textObjects = content.match(textObjectPattern);
+    
+    if (textObjects) {
+      for (const textObj of textObjects) {
+        const lines = textObj.split(/\r?\n/);
+        for (const line of lines) {
+          const textMatch = line.match(/\((.*?)\)\s*Tj/);
+          if (textMatch && textMatch[1]) {
+            const cleanText = textMatch[1]
+              .replace(/\\[rnt]/g, ' ')
+              .replace(/\\\\/g, '\\')
+              .trim();
+            
+            if (cleanText.length > 1) {
+              extractedText += cleanText + ' ';
+            }
+          }
+        }
+      }
     }
     
-    const phoneMatches = content.match(/[\+]?[1-9]?[\-\s]?\(?[0-9]{3}\)?[\-\s]?[0-9]{3}[\-\s]?[0-9]{4}/g);
-    if (phoneMatches) {
-      text += phoneMatches.join(' ') + ' ';
+    // Strategy 3: Extract any remaining readable text patterns
+    const readablePattern = /[A-Za-z][A-Za-z0-9\s@._-]{2,}/g;
+    const readableMatches = content.match(readablePattern);
+    
+    if (readableMatches) {
+      for (const match of readableMatches) {
+        const cleaned = match.trim();
+        if (cleaned.length > 2 && !extractedText.includes(cleaned)) {
+          extractedText += cleaned + ' ';
+        }
+      }
     }
     
-    text = text.trim();
+    // Clean up the final text
+    extractedText = extractedText
+      .replace(/\s+/g, ' ')
+      .replace(/[^\w\s@._-]/g, ' ')
+      .trim();
     
-    if (text.length < 50) {
-      throw new Error('Could not extract sufficient readable text from PDF using fallback method.');
+    console.log('Improved extraction result length:', extractedText.length);
+    console.log('Improved extraction preview:', extractedText.substring(0, 300));
+    
+    if (extractedText.length < 50) {
+      throw new Error('Could not extract sufficient readable text from PDF. The document may be scanned or contain non-text content.');
     }
     
-    return text;
+    return extractedText;
     
   } catch (error) {
-    console.error('Simple PDF extraction error:', error);
-    throw new Error(`PDF parsing completely failed: ${error.message}`);
+    console.error('Improved PDF extraction error:', error);
+    throw new Error(`PDF parsing failed: ${error.message}`);
   }
 }
