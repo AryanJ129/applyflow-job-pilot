@@ -80,7 +80,7 @@ serve(async (req) => {
       });
     }
 
-    // Call DeepSeek API
+    // Call DeepSeek API with improved prompt
     const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
       headers: {
@@ -92,27 +92,26 @@ serve(async (req) => {
         messages: [
           {
             role: 'system',
-            content: `You are an ATS scoring assistant. Review the resume text and give a score out of 10 in these categories: Header, Body Content, Formatting, Contact Info, Structure. For each, give reasons in bullet points. Then give an overall Final Score (0–10), list "What You Did Well" (✅), and "What Needs Improvement" (❌). 
+            content: `You are an ATS assistant. Given the resume text, return a JSON object with this structure:
 
-Respond in this EXACT JSON format:
 {
-  "Header": 8,
-  "Body Content": 7,
-  "Formatting": 6,
+  "Header": 7,
+  "Body Content": 5,
+  "Formatting": 8,
   "Contact Info": 9,
-  "Structure": 7,
+  "Structure": 6,
   "Final Score": 7,
   "What You Did Well": [
-    "Clear contact information",
-    "Relevant work experience",
-    "Professional email address"
+    "Clear contact information is present",
+    "Professional formatting with consistent spacing"
   ],
   "What Needs Improvement": [
-    "Add more quantified achievements",
-    "Include relevant keywords",
-    "Improve formatting consistency"
+    "Missing keywords for target role",
+    "Skills section could be more specific"
   ]
-}`
+}
+
+Only return this JSON object and nothing else.`
           },
           {
             role: 'user',
@@ -129,11 +128,28 @@ Respond in this EXACT JSON format:
     }
 
     const data = await response.json();
-    const reply = data.choices[0].message.content;
+    const raw = data.choices[0].message.content.trim();
 
-    console.log('DeepSeek response:', reply);
+    console.log('DeepSeek raw reply:', raw);
 
-    return new Response(JSON.stringify({ result: reply }), { 
+    // Robust JSON parsing with error handling
+    let parsed;
+    try {
+      parsed = JSON.parse(raw);
+    } catch (err) {
+      console.error('Failed to parse DeepSeek response:', raw);
+      return new Response(JSON.stringify({
+        error: 'AI returned malformed JSON',
+        raw: raw
+      }), { 
+        status: 500,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log('Parsed ATS results:', parsed);
+
+    return new Response(JSON.stringify({ result: JSON.stringify(parsed) }), { 
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
