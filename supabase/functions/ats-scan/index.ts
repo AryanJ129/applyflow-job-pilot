@@ -21,7 +21,7 @@ async function logError(name: string, error: string) {
       .from('error_logs')
       .insert({
         name,
-        error: error.substring(0, 1000) // Limit error message length
+        error: error.substring(0, 1000)
       });
   } catch (logErr) {
     console.error('Failed to log error:', logErr);
@@ -35,12 +35,12 @@ serve(async (req) => {
   }
 
   try {
-    const { resumeText, jobRole } = await req.json();
+    const { resumeText } = await req.json();
 
-    // More strict validation for resume content
+    // Validate resume content
     if (!resumeText || resumeText.length < 50) {
       await logError('Invalid Resume Text', `Resume text too short: ${resumeText?.length || 0} characters. Content preview: ${resumeText?.substring(0, 200) || 'null'}`);
-      return new Response(JSON.stringify({ error: "Please upload a valid resume with readable content!" }), {
+      return new Response(JSON.stringify({ error: "We couldn't scan this file. Try uploading a text-based PDF or .docx" }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -53,7 +53,7 @@ serve(async (req) => {
     
     if (readableWordCount < 20) {
       await logError('Garbled Resume Text', `Resume appears to contain garbled text. Readable words: ${readableWordCount}. Content: ${resumeText.substring(0, 300)}`);
-      return new Response(JSON.stringify({ error: "The uploaded PDF appears to contain garbled or unreadable text. Please try uploading a different PDF or ensure your resume contains selectable text." }), {
+      return new Response(JSON.stringify({ error: "We couldn't scan this file. Try uploading a text-based PDF or .docx" }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
@@ -62,44 +62,30 @@ serve(async (req) => {
     console.log('Analyzing resume with DeepSeek...');
     console.log('Resume text length:', resumeText.length);
     console.log('Readable words found:', readableWordCount);
-    console.log('Resume text preview:', resumeText.substring(0, 300) + '...');
 
-    const systemPrompt = `You are an ATS scoring assistant. Analyze the following resume text and provide detailed feedback.
+    const systemPrompt = `You are an ATS resume evaluator. Given a resume's raw text, respond in this exact JSON format:
 
-The text provided is extracted from a PDF resume. Look for actual resume content such as:
-- Names, contact information  
-- Work experience with companies, roles, dates
-- Education details
-- Skills listings
-- Any professional information
-
-Provide scores (1-10 scale) and feedback on:
-1. Header - Contact information, name, professional title
-2. Content - Overall content quality and relevance  
-3. Work Experience - Quality and detail of work experience descriptions
-4. Keywords - Industry-relevant keywords and technical terms
-5. Structure - Organization and readability
-
-Then provide:
-- What You Did Well (positive aspects)
-- What Needs Improvement (areas for enhancement)  
-- Final Score: average of the above 5 categories, rounded to 1 decimal
-
-IMPORTANT: Only respond with {"error": "Please upload a resume!"} if there is absolutely NO identifiable resume content whatsoever.
-
-Respond ONLY in this JSON format (no markdown formatting):
 {
-  "header": 7,
-  "content": 5,
-  "workExperience": 8,
-  "keywords": 6,
-  "structure": 9,
-  "whatWentWell": ["Clear contact info", "Consistent bullet points", "Strong action verbs"],
-  "improvements": ["Missing keywords", "Weak experience details", "No quantified achievements"],
-  "finalScore": 7.0
-}`;
+  "header": 1-10,
+  "body": 1-10,
+  "formatting": 1-10,
+  "contact": 1-10,
+  "structure": 1-10,
+  "good": ["What the user did well"],
+  "bad": ["What needs improvement"],
+  "final": final score out of 10
+}
 
-    const userPrompt = `Analyze this resume${jobRole ? ` for the role: ${jobRole}` : ''}:\n\n${resumeText}`;
+Evaluate these specific aspects:
+- Header: Contact information, name, professional title clarity
+- Body: Content quality, relevant experience, achievements
+- Formatting: Structure, readability, ATS compatibility
+- Contact: Complete contact details, professional email
+- Structure: Logical flow, proper sections, clear organization
+
+Provide specific, actionable feedback in the "good" and "bad" arrays.`;
+
+    const userPrompt = `Analyze this resume:\n\n${resumeText}`;
 
     const response = await fetch('https://api.deepseek.com/chat/completions', {
       method: 'POST',
@@ -147,32 +133,23 @@ Respond ONLY in this JSON format (no markdown formatting):
     try {
       analysisResult = JSON.parse(cleanedResponse);
     } catch (parseError) {
-      await logError('JSON Parse Error', `Failed to parse AI response: ${parseError.message}\nOriginal response: ${aiResponse}\nCleaned response: ${cleanedResponse}\nResume length: ${resumeText.length}\nReadable words: ${readableWordCount}`);
-      throw new Error('Invalid response format from AI');
+      await logError('JSON Parse Error', `Failed to parse AI response: ${parseError.message}\nOriginal response: ${aiResponse}\nCleaned response: ${cleanedResponse}`);
+      throw new Error('ATS scan failed. Please try again later.');
     }
 
     // Validate the response structure
     if (typeof analysisResult !== 'object' || analysisResult === null) {
       await logError('Invalid Response Structure', `Response is not an object: ${JSON.stringify(analysisResult)}`);
-      throw new Error('Invalid response structure from AI');
-    }
-
-    // Check if it's an error response
-    if (analysisResult.error) {
-      await logError('AI Analysis Error', `DeepSeek returned error: ${analysisResult.error}\nResume text length: ${resumeText.length}\nReadable words: ${readableWordCount}\nResume preview: ${resumeText.substring(0, 300)}`);
-      return new Response(JSON.stringify({ error: analysisResult.error }), {
-        status: 400,
-        headers: { ...corsHeaders, 'Content-Type': 'application/json' },
-      });
+      throw new Error('ATS scan failed. Please try again later.');
     }
 
     // Validate required fields
-    const requiredFields = ['header', 'content', 'workExperience', 'keywords', 'structure', 'whatWentWell', 'improvements', 'finalScore'];
+    const requiredFields = ['header', 'body', 'formatting', 'contact', 'structure', 'good', 'bad', 'final'];
     const missingFields = requiredFields.filter(field => !(field in analysisResult));
     
     if (missingFields.length > 0) {
       await logError('Missing Response Fields', `Missing fields: ${missingFields.join(', ')}\nResponse: ${JSON.stringify(analysisResult)}`);
-      throw new Error('Incomplete response from AI');
+      throw new Error('ATS scan failed. Please try again later.');
     }
 
     console.log('Analysis successful:', analysisResult);
@@ -186,7 +163,7 @@ Respond ONLY in this JSON format (no markdown formatting):
     await logError('ATS Scan Function Error', `${error.message || 'Unknown error occurred'}\nStack: ${error.stack || 'No stack trace'}`);
     
     return new Response(
-      JSON.stringify({ error: error.message || 'Analysis failed' }),
+      JSON.stringify({ error: error.message || 'ATS scan failed. Please try again later.' }),
       {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },

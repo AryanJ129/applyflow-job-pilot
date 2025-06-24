@@ -82,22 +82,22 @@ const FileUploadCard = ({ onFileUpload, uploadedFile }: FileUploadCardProps) => 
         >
           <Upload className="h-12 w-12 text-gray-400 mx-auto mb-4" />
           <h3 className="text-lg font-semibold text-[hsl(222.2_84%_4.9%)] mb-2">
-            Upload Resume
+            Upload Your Resume
           </h3>
           <p className="text-muted-foreground mb-4">
-            Drag and drop your file here, or click to browse
+            Drag and drop your resume here, or click to browse
           </p>
           <p className="text-sm text-muted-foreground mb-4">
-            Supported formats: PDF, Word (.docx), Text (.txt)
+            <strong>Best:</strong> PDF files | Also supports: Word (.docx), Text (.txt)
           </p>
           
-          <div className="mt-4 p-3 bg-amber-50 rounded-lg border border-amber-200">
+          <div className="mt-4 p-3 bg-blue-50 rounded-lg border border-blue-200">
             <div className="flex items-start space-x-2">
-              <AlertCircle className="h-4 w-4 text-amber-600 mt-0.5 flex-shrink-0" />
+              <AlertCircle className="h-4 w-4 text-blue-600 mt-0.5 flex-shrink-0" />
               <div className="text-left">
-                <p className="text-sm font-medium text-amber-800">LaTeX PDF Issues?</p>
-                <p className="text-xs text-amber-700">
-                  If your LaTeX-generated PDF isn't working, try uploading a Word document instead.
+                <p className="text-sm font-medium text-blue-800">💡 Best Results</p>
+                <p className="text-xs text-blue-700">
+                  For optimal text extraction, use text-based PDFs. If you're having issues with LaTeX-generated PDFs, try uploading a Word document instead.
                 </p>
               </div>
             </div>
