@@ -63,7 +63,7 @@ const AtsChecker = () => {
     setResults(null);
     
     try {
-      console.log('Starting ATS scan for:', uploadedFile.name);
+      console.log('🚀 Starting ATS scan for:', uploadedFile.name);
       
       const formData = new FormData();
       formData.append('resume', uploadedFile);
@@ -73,7 +73,7 @@ const AtsChecker = () => {
       });
 
       if (error) {
-        console.error('Supabase function error:', error);
+        console.error('❌ Supabase function error:', error);
         throw new Error(error.message || 'Failed to process file');
       }
 
@@ -81,18 +81,22 @@ const AtsChecker = () => {
         throw new Error(data.error);
       }
 
-      console.log('Raw result from API:', data.result);
+      console.log('✅ Raw result from API:', data.result);
 
-      // Parse the JSON response from OpenAI
-      let parsed;
-      try {
-        parsed = JSON.parse(data.result);
-      } catch (parseError) {
-        console.error('Failed to parse result:', data.result);
-        throw new Error('Invalid response format from analysis service');
+      // The result should now be a parsed object, not a JSON string
+      let parsed = data.result;
+      
+      // If it's still a string, parse it (backward compatibility)
+      if (typeof parsed === 'string') {
+        try {
+          parsed = JSON.parse(parsed);
+        } catch (parseError) {
+          console.error('❌ Failed to parse result:', data.result);
+          throw new Error('Invalid response format from analysis service');
+        }
       }
 
-      console.log('Parsed ATS results:', parsed);
+      console.log('✅ Parsed ATS results:', parsed);
 
       // Transform the data to match the ResultsSection component format
       const transformedResults = {
@@ -108,7 +112,7 @@ const AtsChecker = () => {
         finalScore: parsed["Final Score"] || parsed.final || 0
       };
 
-      console.log('Transformed results:', transformedResults);
+      console.log('✅ Transformed results:', transformedResults);
 
       setResults(transformedResults);
       setShowResults(true);
@@ -119,7 +123,7 @@ const AtsChecker = () => {
       });
       
     } catch (error) {
-      console.error('ATS scan error:', error);
+      console.error('❌ ATS scan error:', error);
       
       toast({
         title: "ATS Scan Failed",

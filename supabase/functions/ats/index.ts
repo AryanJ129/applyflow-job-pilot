@@ -9,27 +9,27 @@ const corsHeaders = {
   'Access-Control-Allow-Headers': 'authorization, x-client-info, apikey, content-type',
 };
 
-// Extract text from PDF using pdfjs-dist (Deno compatible)
-async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
+// Extract text from PDF using pdfjs-dist (Fixed version for Deno compatibility)
+async function extractPdfText(buffer: Uint8Array): Promise<string> {
   try {
-    // Use pdfjs-dist via CDN for Deno compatibility
-    const pdfjsLib = await import('https://esm.sh/pdfjs-dist@4.0.379/build/pdf.min.mjs');
+    // Use stable pdfjs-dist version for better Deno compatibility
+    const pdfjsLib = await import('https://esm.sh/pdfjs-dist@3.4.120');
     
-    // Set worker source to avoid GlobalWorkerOptions error
-    pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://esm.sh/pdfjs-dist@4.0.379/build/pdf.worker.min.mjs';
+    // Load PDF document with simplified approach
+    const loadingTask = pdfjsLib.getDocument({ data: buffer });
+    const pdf = await loadingTask.promise;
     
-    // Load PDF document
-    const pdf = await pdfjsLib.getDocument({ data: new Uint8Array(buffer) }).promise;
     let fullText = '';
     
     // Extract text from each page
     for (let i = 1; i <= pdf.numPages; i++) {
       const page = await pdf.getPage(i);
-      const textContent = await page.getTextContent();
-      const pageText = textContent.items.map((item: any) => item.str).join(' ');
-      fullText += pageText + '\n';
+      const content = await page.getTextContent();
+      const strings = content.items.map((item: any) => item.str);
+      fullText += strings.join(' ') + '\n';
     }
     
+    console.log(`✅ PDF text extracted successfully, length: ${fullText.length}`);
     return fullText;
   } catch (error) {
     console.error('PDF text extraction failed:', error);
@@ -38,10 +38,11 @@ async function extractPdfText(buffer: ArrayBuffer): Promise<string> {
 }
 
 // Extract text from DOCX using mammoth (Deno compatible version)
-async function extractDocxText(buffer: ArrayBuffer): Promise<string> {
+async function extractDocxText(buffer: Uint8Array): Promise<string> {
   try {
     const mammoth = await import('https://esm.sh/mammoth@1.8.0');
-    const result = await mammoth.extractRawText({ arrayBuffer: buffer });
+    const result = await mammoth.extractRawText({ arrayBuffer: buffer.buffer });
+    console.log(`✅ DOCX text extracted successfully, length: ${result.value?.length || 0}`);
     return result.value || '';
   } catch (error) {
     console.error('DOCX text extraction failed:', error);
@@ -60,15 +61,17 @@ serve(async (req) => {
     const file = formData.get('resume') as File;
 
     if (!file || !file.name) {
+      console.error('❌ No file provided in request');
       return new Response(JSON.stringify({ error: 'Missing file' }), { 
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    console.log('Processing file:', file.name, 'Size:', file.size);
+    console.log('📁 Processing file:', file.name, 'Size:', file.size);
 
     if (!openaiApiKey) {
+      console.error('❌ OpenAI API key not configured');
       return new Response(JSON.stringify({ error: 'OpenAI API key not configured' }), { 
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
@@ -78,26 +81,42 @@ serve(async (req) => {
     // Validate file type
     const fileName = file.name.toLowerCase();
     if (!fileName.endsWith('.pdf') && !fileName.endsWith('.docx')) {
+      console.error('❌ Unsupported file type:', fileName);
       return new Response(JSON.stringify({ error: 'Unsupported file type. Please upload PDF or DOCX files only.' }), { 
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' }
       });
     }
 
-    const buffer = await file.arrayBuffer();
+    // Convert to Uint8Array once and validate
+    const buffer = new Uint8Array(await file.arrayBuffer());
+    
+    if (!buffer || buffer.length < 100) {
+      console.error('❌ Invalid or empty file buffer, length:', buffer.length);
+      return new Response(JSON.stringify({
+        error: 'Invalid or empty file. Please upload a valid PDF or DOCX.'
+      }), {
+        status: 400,
+        headers: { ...corsHeaders, 'Content-Type': 'application/json' }
+      });
+    }
+
+    console.log('✅ File uploaded successfully, buffer size:', buffer.length);
+
     let extractedText: string;
 
     // Extract text based on file type
     if (fileName.endsWith('.pdf')) {
-      console.log('Extracting text from PDF...');
+      console.log('🔍 Extracting text from PDF...');
       extractedText = await extractPdfText(buffer);
     } else {
-      console.log('Extracting text from DOCX...');
+      console.log('🔍 Extracting text from DOCX...');
       extractedText = await extractDocxText(buffer);
     }
 
     // Validate extracted text
     if (extractedText.length < 100) {
+      console.error('❌ Insufficient text extracted, length:', extractedText.length);
       return new Response(JSON.stringify({ 
         error: 'Unable to extract sufficient text from file. The document may be empty, corrupted, or contain only images.',
         extractedLength: extractedText.length
@@ -107,9 +126,11 @@ serve(async (req) => {
       });
     }
 
-    console.log(`Extracted text (first 500 chars): ${extractedText.slice(0, 500)}`);
+    console.log(`✅ Text extracted successfully (${extractedText.length} chars)`);
+    console.log(`📄 First 500 chars: ${extractedText.slice(0, 500)}`);
 
-    // Call OpenAI GPT-4
+    // Call OpenAI with updated model
+    console.log('🤖 Calling OpenAI API...');
     const openaiResponse = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
       headers: {
@@ -117,7 +138,7 @@ serve(async (req) => {
         'Content-Type': 'application/json',
       },
       body: JSON.stringify({
-        model: 'gpt-4',
+        model: 'gpt-4o-mini', // Updated to use faster, more cost-effective model
         messages: [
           {
             role: 'user',
@@ -149,7 +170,7 @@ ${extractedText.slice(0, 8000)}`
 
     if (!openaiResponse.ok) {
       const errorText = await openaiResponse.text();
-      console.error('OpenAI API error:', openaiResponse.status, errorText);
+      console.error('❌ OpenAI API error:', openaiResponse.status, errorText);
       return new Response(JSON.stringify({ 
         error: `OpenAI API error: ${openaiResponse.status}`,
         details: errorText
@@ -162,7 +183,7 @@ ${extractedText.slice(0, 8000)}`
     const data = await openaiResponse.json();
     let rawResponse = data.choices[0].message.content.trim();
 
-    console.log('OpenAI raw response:', rawResponse);
+    console.log('🤖 OpenAI raw response:', rawResponse);
 
     // Clean up markdown code blocks if present
     if (rawResponse.startsWith('```json') && rawResponse.endsWith('```')) {
@@ -175,9 +196,9 @@ ${extractedText.slice(0, 8000)}`
     let parsedResult;
     try {
       parsedResult = JSON.parse(rawResponse);
-      console.log('Successfully parsed ATS results:', parsedResult);
+      console.log('✅ Successfully parsed ATS results:', parsedResult);
     } catch (parseError) {
-      console.error('Failed to parse OpenAI response:', rawResponse);
+      console.error('❌ Failed to parse OpenAI response:', rawResponse);
       return new Response(JSON.stringify({
         error: 'OpenAI returned non-JSON output',
         rawResponse: rawResponse.substring(0, 500),
@@ -193,7 +214,7 @@ ${extractedText.slice(0, 8000)}`
     const missingFields = requiredFields.filter(field => !(field in parsedResult));
     
     if (missingFields.length > 0) {
-      console.error('Missing required fields:', missingFields);
+      console.error('❌ Missing required fields:', missingFields);
       return new Response(JSON.stringify({
         error: 'Incomplete analysis response from OpenAI',
         missingFields,
@@ -204,15 +225,18 @@ ${extractedText.slice(0, 8000)}`
       });
     }
 
+    console.log('✅ ATS analysis completed successfully');
+
+    // Return the parsed result directly (no double JSON.stringify)
     return new Response(JSON.stringify({ 
-      result: JSON.stringify(parsedResult)
+      result: parsedResult
     }), { 
       status: 200,
       headers: { ...corsHeaders, 'Content-Type': 'application/json' }
     });
 
   } catch (error) {
-    console.error('ATS analysis error:', error);
+    console.error('❌ ATS analysis error:', error);
     return new Response(JSON.stringify({ 
       error: 'Failed to analyze resume', 
       details: error.message
